@@ -1,0 +1,98 @@
+---
+description: Reglas de infraestructura Docker, variables de entorno y storage. Aplica en Dockerfile, docker-compose.yml y src/lib/redis.ts.
+globs: ["Dockerfile*", "docker-compose*", "src/lib/redis.ts", "src/lib/audio/storage.ts"]
+---
+
+# Infraestructura — Docker y Storage
+
+## Variables de entorno obligatorias
+Estas variables deben estar siempre presentes. Si alguna falta, el proceso debe lanzar un error explícito al arrancar:
+
+```typescript
+// src/lib/env.ts — validar al inicio
+const required = ['DATABASE_URL', 'REDIS_URL', 'GEMINI_API_KEY', 'NEXTAUTH_SECRET', 'AUDIO_STORAGE_PATH'];
+for (const key of required) {
+  if (!process.env[key]) throw new Error(`Variable de entorno requerida: ${key}`);
+}
+```
+
+## Cliente Redis (singleton)
+```typescript
+// src/lib/redis.ts
+import { Redis } from 'ioredis';
+
+const globalForRedis = globalThis as unknown as { redis: Redis };
+
+export const redis =
+  globalForRedis.redis ??
+  new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
+
+if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redis;
+```
+
+El parámetro `maxRetriesPerRequest: null` es necesario para que BullMQ funcione correctamente.
+
+## BullMQ — conexión compartida
+```typescript
+// src/lib/queue/connection.ts
+import { Redis } from 'ioredis';
+export const connection = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
+
+// src/lib/queue/jobs.ts
+import { Queue } from 'bullmq';
+import { connection } from './connection';
+export const generacionQueue = new Queue('generacion', { connection });
+```
+
+## Storage de audio
+La capa de storage abstrae el filesystem local (dev) de S3 (prod):
+```typescript
+// src/lib/audio/storage.ts
+export async function guardarAudio(buffer: Buffer, relativePath: string): Promise<string> {
+  // En dev: escribe en AUDIO_STORAGE_PATH
+  // En prod: sube a S3
+}
+
+export function urlAudio(relativePath: string): string {
+  // En dev: devuelve /api/audio/stream/[path]
+  // En prod: devuelve URL de S3
+}
+```
+Nunca hardcodear rutas absolutas del filesystem fuera de `storage.ts`.
+
+## Dockerfile — requerimientos
+El Dockerfile de la app debe incluir FFmpeg:
+```dockerfile
+FROM node:20-alpine
+RUN apk add --no-cache ffmpeg
+# ... resto del Dockerfile
+```
+
+El `Dockerfile.worker` es idéntico pero el `CMD` apunta al worker:
+```dockerfile
+CMD ["node", "dist/worker/index.js"]
+```
+
+## Health checks en docker-compose
+Los servicios críticos deben tener healthcheck para que `depends_on` funcione correctamente:
+```yaml
+db:
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U radioflow"]
+    interval: 5s
+    timeout: 5s
+    retries: 5
+
+redis:
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 5s
+```
+
+## Icecast — estado en MVP
+Icecast está levantado en docker-compose pero **no se usa en el MVP**. El panel OBS usa la Web Audio API del navegador directamente. No integrar Icecast hasta que se decida implementar streaming real. No exponer ni documentar endpoints de Icecast en la app actual.
+
+## Secrets — nunca en el repositorio
+- `.env.local` está en `.gitignore`. Nunca hacer commit de este archivo.
+- Los secrets en producción se inyectan como variables de entorno del host/plataforma.
+- El archivo `.env.example` sí va al repositorio, con valores de ejemplo (sin secrets reales).

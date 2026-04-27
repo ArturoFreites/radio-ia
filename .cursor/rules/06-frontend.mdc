@@ -1,0 +1,99 @@
+---
+description: Patrones React, Next.js App Router, shadcn/ui y el panel OBS. Aplica en src/app/ y src/components/.
+globs: ["src/app/**", "src/components/**"]
+---
+
+# Frontend — Patrones Next.js + React
+
+## Server vs Client components
+- Por defecto, todos los componentes son **Server Components** (sin `'use client'`).
+- Agregar `'use client'` solo cuando el componente necesita: hooks de estado/efecto, event handlers, Web API (Audio, localStorage), o librerías que no soporten SSR.
+- Los componentes del editor de bloques (`BloqueEditor`, drag & drop) son client components.
+- El panel OBS (`PanelOBS`) es client component (Web Audio API).
+- Los componentes del dashboard que solo muestran datos son server components.
+
+## Data fetching en Server Components
+```typescript
+// src/app/(dashboard)/programas/page.tsx
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+export default async function ProgramasPage() {
+  const session = await getServerSession(authOptions);
+  const programas = await prisma.programa.findMany({
+    where: { radioId: session!.user.radioId },
+    orderBy: { updatedAt: 'desc' },
+  });
+  return <ProgramasList programas={programas} />;
+}
+```
+
+No usar `useEffect` + fetch para datos que se pueden obtener en el servidor.
+
+## shadcn/ui — uso correcto
+- Los componentes de shadcn están en `src/components/ui/`. No modificarlos directamente.
+- Para extender un componente de shadcn, crear un wrapper en `src/components/{dominio}/`.
+- Usar `cn()` de `@/lib/utils` para combinar clases Tailwind condicionalmente.
+
+## Formularios
+- Usar `react-hook-form` + Zod para validación de formularios del lado cliente.
+- El mismo schema Zod que valida el API route puede reutilizarse en el formulario.
+- Los formularios de configuración de bloques son dinámicos según el `TipoBloque`. Implementar como componente con switch por tipo.
+
+## Editor de Bloques (drag & drop)
+- Usar `@dnd-kit/core` y `@dnd-kit/sortable`.
+- El timeline es una lista sortable horizontal. El panel de tipos disponibles es la fuente de drag.
+- Al reordenar, actualizar el orden optimistamente en el estado local y persistir en el servidor en `onDragEnd`.
+- El estado del editor se maneja con Zustand en `src/stores/editorStore.ts`.
+
+## Panel OBS (`/panel/[programaId]`)
+- Página standalone: sin layout del dashboard, sin sidebar, sin header.
+- Background oscuro (`bg-gray-950` o `bg-black`) para que OBS capture limpio.
+- Sin animaciones CSS pesadas (afectan la CPU del streamer).
+- Precargar todos los audios al montar con `new Audio(url)` y `audio.load()`.
+- Controles de reproducción 100% custom. No usar el `<audio>` nativo con `controls`.
+- El estado del reproductor (bloque activo, progreso, reproduciendo) vive en un `useReducer` local.
+
+```typescript
+type PlayerState = {
+  bloqueActivo: number;        // índice del bloque actual
+  reproduciendo: boolean;
+  progreso: number;            // 0-1
+};
+```
+
+## Polling de progreso durante generación
+Mientras un programa está en estado `GENERANDO`, el frontend hace polling al endpoint de estado:
+```typescript
+useEffect(() => {
+  if (estado !== 'GENERANDO') return;
+  const interval = setInterval(async () => {
+    const res = await fetch(`/api/programas/${id}/estado`);
+    const data = await res.json();
+    setEstado(data.estado);
+    setBloques(data.bloques);
+    if (data.estado !== 'GENERANDO') clearInterval(interval);
+  }, 2000);
+  return () => clearInterval(interval);
+}, [estado, id]);
+```
+
+## Rutas del dashboard — protección
+El layout `src/app/(dashboard)/layout.tsx` debe verificar sesión y redirigir si no hay autenticación:
+```typescript
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+
+export default async function DashboardLayout({ children }) {
+  const session = await getServerSession(authOptions);
+  if (!session) redirect('/login');
+  return <>{children}</>;
+}
+```
+
+## Notificaciones y feedback al usuario
+Usar el componente `<Toaster>` de shadcn/ui (sonner). Importar `toast` desde `sonner`.
+- Éxito: `toast.success('Programa generado')`
+- Error: `toast.error('Error al generar. Intentá de nuevo.')`
+- Cargando: `toast.loading('Generando programa...')`

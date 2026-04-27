@@ -1,0 +1,108 @@
+---
+description: Configuración de NextAuth, sesión y extensión de tipos. Aplica en src/lib/auth.ts y cualquier archivo que use getServerSession o useSession.
+globs: ["src/lib/auth.ts", "src/app/api/auth/**", "src/app/(auth)/**"]
+---
+
+# Autenticación — NextAuth.js v4
+
+## Configuración base
+```typescript
+// src/lib/auth.ts
+import { NextAuthOptions } from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+
+export const authOptions: NextAuthOptions = {
+  providers: [
+    CredentialsProvider({
+      name: 'credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Contraseña', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials.password) return null;
+        const usuario = await prisma.usuario.findUnique({
+          where: { email: credentials.email },
+          include: { radio: true },
+        });
+        if (!usuario) return null;
+        const ok = await bcrypt.compare(credentials.password, usuario.password);
+        if (!ok) return null;
+        return {
+          id: usuario.id,
+          email: usuario.email,
+          nombre: usuario.nombre,
+          radioId: usuario.radioId,
+          rol: usuario.rol,
+        };
+      },
+    }),
+  ],
+  callbacks: {
+    jwt({ token, user }) {
+      if (user) {
+        token.radioId = (user as any).radioId;
+        token.rol = (user as any).rol;
+        token.nombre = (user as any).nombre;
+      }
+      return token;
+    },
+    session({ session, token }) {
+      if (token) {
+        session.user.radioId = token.radioId as string;
+        session.user.rol = token.rol as string;
+        session.user.nombre = token.nombre as string;
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: '/login',
+    error: '/login',
+  },
+  session: { strategy: 'jwt' },
+};
+```
+
+## Extensión de tipos de NextAuth
+Declarar en `src/types/next-auth.d.ts` para que TypeScript reconozca los campos extra:
+```typescript
+import { DefaultSession, DefaultJWT } from 'next-auth';
+
+declare module 'next-auth' {
+  interface Session {
+    user: DefaultSession['user'] & {
+      radioId: string;
+      rol: string;
+      nombre: string;
+    };
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT extends DefaultJWT {
+    radioId: string;
+    rol: string;
+    nombre: string;
+  }
+}
+```
+
+## Registro de nueva radio
+El endpoint `POST /api/auth/register` crea Radio + Usuario en una transacción:
+```typescript
+const hashedPassword = await bcrypt.hash(password, 12);
+const slug = nombre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+await prisma.$transaction([
+  prisma.radio.create({ data: { nombre, slug, ciudad, provincia, plan: 'STARTER' } }),
+  prisma.usuario.create({ data: { email, password: hashedPassword, nombre, radioId, rol: 'ADMIN' } }),
+]);
+```
+
+## Passwords
+- Siempre hashear con bcrypt, factor 12.
+- Nunca almacenar ni loguear contraseñas en texto plano.
+- No retornar el campo `password` en ninguna respuesta de API.

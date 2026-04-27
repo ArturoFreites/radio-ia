@@ -1,0 +1,84 @@
+---
+description: Patrones de Prisma, migraciones y queries. Aplica en archivos de src/lib/, src/app/api/ y prisma/.
+globs: ["src/lib/**", "src/app/api/**", "prisma/**", "worker/**"]
+---
+
+# Base de datos — Patrones Prisma
+
+## Cliente Prisma (singleton)
+Siempre importar desde `@/lib/prisma`, nunca instanciar `PrismaClient` directamente en otro archivo.
+
+```typescript
+// src/lib/prisma.ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({ log: process.env.NODE_ENV === 'development' ? ['query'] : [] });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+```
+
+## Patrones de query
+
+### Buscar con verificación de tenant (patrón estándar)
+```typescript
+const item = await prisma.programa.findFirst({
+  where: { id, radioId },  // doble condición: ID + tenant
+});
+if (!item) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+```
+
+Preferir `findFirst` con doble condición sobre `findUnique` + verificación posterior cuando sea posible.
+
+### Includes necesarios, no selectivos por defecto
+```typescript
+// Solo incluir relaciones que se van a usar
+const programa = await prisma.programa.findFirst({
+  where: { id, radioId },
+  include: {
+    bloques: { orderBy: { orden: 'asc' } },
+    // NO incluir radio si no se necesita
+  }
+});
+```
+
+### Transacciones para operaciones atómicas
+Cuando se crean recursos relacionados en un solo flujo (ej: Radio + Usuario al registrar):
+```typescript
+const [radio, usuario] = await prisma.$transaction([
+  prisma.radio.create({ data: radioData }),
+  prisma.usuario.create({ data: usuarioData }),
+]);
+```
+
+## Enums del schema
+Los enums de Prisma están disponibles como tipos TypeScript. Importarlos así:
+```typescript
+import { EstadoBloque, TipoBloque, Plan } from '@prisma/client';
+```
+
+## Migraciones
+- Nunca editar un archivo de migración ya aplicado.
+- Usar `prisma migrate dev --name descripcion-corta` en desarrollo.
+- Toda migración destructiva (drop column, drop table) debe tener un plan de rollback documentado.
+- En producción: `prisma migrate deploy` (nunca `migrate dev`).
+
+## Estado de bloques — orden correcto
+El flujo de estados de un `Bloque` es estricto:
+```
+PENDIENTE → GENERANDO_GUION → GUION_LISTO → GENERANDO_AUDIO → LISTO
+                                                              → ERROR (desde cualquier estado)
+```
+Nunca saltar estados. Si algo falla, siempre pasar a ERROR con el log.
+
+## JSON config de bloques
+El campo `config` en `Bloque` es `Json`. Al leer, castear con el tipo correspondiente:
+```typescript
+import type { ConfigNoticias, ConfigCuna } from '@/types/bloque';
+
+const config = bloque.config as ConfigNoticias;
+```
+Los tipos de config están en `src/types/bloque.ts`.

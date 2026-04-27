@@ -1,0 +1,118 @@
+---
+description: Estructura y patrones para Route Handlers de Next.js App Router. Aplica en src/app/api/.
+globs: ["src/app/api/**"]
+---
+
+# API Routes — Patrones Next.js App Router
+
+## Estructura estándar de un Route Handler
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  // 1. Autenticación
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.radioId) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+  const { radioId } = session.user;
+
+  // 2. Lógica de negocio
+  const data = await prisma.programa.findFirst({
+    where: { id: params.id, radioId },
+  });
+  if (!data) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+
+  // 3. Respuesta
+  return NextResponse.json(data);
+}
+```
+
+## Validación de body con Zod
+```typescript
+const CreateProgramaSchema = z.object({
+  nombre: z.string().min(1).max(100),
+  descripcion: z.string().optional(),
+});
+
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.radioId) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const result = CreateProgramaSchema.safeParse(body);
+  if (!result.success) {
+    return NextResponse.json({ error: result.error.flatten() }, { status: 400 });
+  }
+
+  // Usar result.data (ya tipado y validado)
+}
+```
+
+## Códigos de respuesta
+| Situación | Código |
+|-----------|--------|
+| Sin sesión / token inválido | 401 |
+| Recurso no encontrado o de otro tenant | 404 |
+| Body inválido (Zod fail) | 400 |
+| Error interno / DB / Gemini | 500 |
+| Creación exitosa | 201 |
+| Operación exitosa sin body | 204 |
+
+## Rutas que usan token en vez de sesión (panel OBS)
+```typescript
+// /api/panel/[programaId]/route.ts
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { programaId: string } }
+) {
+  const token = req.nextUrl.searchParams.get('token');
+  if (!token) return NextResponse.json({ error: 'Token requerido' }, { status: 401 });
+
+  const programa = await prisma.programa.findFirst({
+    where: { id: params.programaId, panelToken: token },
+    include: { bloques: { orderBy: { orden: 'asc' } } },
+  });
+  if (!programa) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+
+  return NextResponse.json(programa);
+}
+```
+
+## Encolado de jobs desde API (no procesar en el handler)
+Los Route Handlers no deben hacer trabajo pesado (generación IA, FFmpeg). Encolar y responder:
+```typescript
+import { generacionQueue } from '@/lib/queue/jobs';
+
+// POST /api/programas/[id]/generar
+export async function POST(req: NextRequest, { params }) {
+  // ... auth + validación ...
+
+  const generacion = await prisma.generacion.create({
+    data: { programaId: params.id, estado: 'EN_COLA' },
+  });
+
+  await generacionQueue.add('generar-programa', {
+    programaId: params.id,
+    generacionId: generacion.id,
+  });
+
+  return NextResponse.json({ generacionId: generacion.id }, { status: 202 });
+}
+```
+
+## Generación de panelToken
+Al crear un programa o en el primer acceso al panel, generar el token así:
+```typescript
+import { randomBytes } from 'crypto';
+const panelToken = randomBytes(32).toString('hex');
+```

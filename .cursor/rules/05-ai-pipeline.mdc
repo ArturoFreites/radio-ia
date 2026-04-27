@@ -1,0 +1,111 @@
+---
+description: Patrones para la generación de guiones con Gemini, TTS y ensamblaje FFmpeg. Aplica en src/lib/gemini/, src/lib/audio/ y worker/.
+globs: ["src/lib/gemini/**", "src/lib/audio/**", "worker/**"]
+---
+
+# Pipeline de IA y Audio
+
+## Cliente Gemini (singleton)
+```typescript
+// src/lib/gemini/client.ts
+import { GoogleGenAI } from '@google/genai';
+
+if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY no definida');
+
+export const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+```
+
+## Generación de guiones — reglas de los prompts
+- Todos los prompts **deben recibir `estiloRadio`** (campo `estiloLocucion` de la Radio) e inyectarlo en el contexto.
+- El texto resultante es para ser leído en voz alta: **nunca incluir markdown, asteriscos, ni formato especial** en la instrucción del prompt.
+- Cada función de prompt vive en su propio archivo: `src/lib/gemini/prompts/{tipo}.ts`.
+- Las funciones de prompt son **puras** (sin side effects, sin llamadas a API). Solo construyen y retornan el string del prompt.
+- La función que llama a Gemini vive en `src/lib/gemini/guiones.ts`.
+
+```typescript
+// Patrón de función de prompt
+export function buildNoticiasPrompt(config: NoticiasPromptConfig): string {
+  return `...prompt string...`;
+}
+
+// Patrón de llamada a Gemini
+import { genai } from './client';
+import { buildNoticiasPrompt } from './prompts/noticias';
+
+export async function generarGuionNoticias(config: NoticiasConfig): Promise<string> {
+  const prompt = buildNoticiasPrompt(config);
+  const response = await genai.models.generateContent({
+    model: 'gemini-2.0-flash',
+    contents: [{ parts: [{ text: prompt }] }],
+  });
+  return response.candidates[0].content.parts[0].text ?? '';
+}
+```
+
+## TTS con Gemini
+- El modelo TTS puede cambiar. El ID del modelo está en una constante en `src/lib/gemini/client.ts`:
+  ```typescript
+  export const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts'; // verificar en docs
+  ```
+- La salida del TTS es PCM/WAV en base64. Siempre guardar como `.wav` primero, convertir a MP3 en el paso de ensamblaje.
+- Si la API de TTS cambia de interfaz, el único archivo a actualizar es `src/lib/gemini/tts.ts`.
+
+## FFmpeg — reglas de seguridad
+Los paths que se pasan a FFmpeg provienen de la DB o del storage interno. Aun así, sanitizarlos:
+```typescript
+import { resolve } from 'path';
+
+function safePath(input: string): string {
+  const resolved = resolve(input);
+  if (!resolved.startsWith(process.env.AUDIO_STORAGE_PATH!)) {
+    throw new Error('Path fuera del directorio de storage');
+  }
+  return resolved;
+}
+```
+Nunca interpolar input del usuario directamente en comandos de shell.
+
+## Ensamblaje — orden de operaciones
+1. Normalizar cada WAV: `44100 Hz, mono, pcm_s16le`
+2. Generar silencio entre bloques (500ms por defecto)
+3. Concatenar con `ffmpeg -f concat`
+4. Convertir a MP3 128k como output final
+5. Limpiar todos los archivos temporales (`.normalized.wav`, `.silence.wav`, listas `.txt`)
+
+Si algún paso de limpieza falla, logear el error pero no interrumpir el flujo.
+
+## Worker BullMQ — patrones
+```typescript
+// worker/index.ts
+import { Worker } from 'bullmq';
+import { connection } from './utils/redis';
+
+const worker = new Worker('generacion', async (job) => {
+  if (job.name === 'generar-programa') {
+    await procesarGeneracion(job);
+  }
+}, { connection });
+
+worker.on('failed', (job, err) => {
+  console.error(`Job ${job?.id} falló:`, err.message);
+});
+```
+
+## Progreso y estados durante la generación
+- Actualizar estado del `Bloque` en DB en cada transición (no solo al final).
+- Reportar `job.updateProgress(n)` al terminar cada bloque para que el frontend pueda mostrar progreso real.
+- Si un bloque falla, marcar **solo ese bloque** como ERROR y continuar con los siguientes (degradación elegante).
+- Solo marcar la `Generacion` como ERROR si fallan más del 50% de los bloques (definir umbral en constante).
+
+## Fetch de noticias RSS
+- El parser RSS puede fallar por timeout o feed malformado. Cada URL se intenta de forma independiente con try/catch.
+- Si ninguna fuente devuelve noticias, el guión de noticias se genera con un aviso genérico (no romper el flujo).
+- Cachear el resultado del RSS en Redis por 10 minutos para no sobresolicitar las fuentes:
+  ```typescript
+  const CACHE_KEY = `rss:${url}`;
+  const CACHE_TTL = 600; // segundos
+  ```
+
+## Open-Meteo (clima)
+- API gratuita, sin key. Si falla, el bloque de entretenimiento se genera sin datos de clima reales (Gemini improvisa con su conocimiento).
+- No bloquear la generación por un error de clima.

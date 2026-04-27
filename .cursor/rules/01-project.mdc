@@ -1,0 +1,52 @@
+---
+description: Visión general del proyecto, stack y convenciones base. Aplicar siempre.
+alwaysApply: true
+---
+
+# RadioFlow AI — Reglas del proyecto
+
+## Qué es este sistema
+Plataforma SaaS multi-tenant que genera programas de radio completos con IA (guiones + voz sintética) y los expone como URL de navegador para que OBS Studio los consuma como fuente de audio.
+
+## Stack — no proponer alternativas sin pedido explícito
+- **Framework:** Next.js 14+ con App Router
+- **DB:** PostgreSQL vía Prisma ORM
+- **Cache/Colas:** Redis con BullMQ
+- **IA texto + TTS:** Google Gemini API (`@google/genai`)
+- **Audio:** FFmpeg (ensamblaje), Icecast (streaming futuro)
+- **Auth:** NextAuth.js v4
+- **UI:** Tailwind CSS + shadcn/ui + lucide-react
+- **Estado global:** Zustand
+- **Validación:** Zod en toda frontera de entrada (API routes, forms)
+- **Worker:** proceso Node.js separado (`Dockerfile.worker`)
+
+## TypeScript — reglas estrictas
+- Nunca usar `any`. Usar tipos del schema Prisma o tipos en `src/types/`.
+- Todas las funciones exportadas deben tener tipos explícitos de parámetros y retorno.
+- Preferir `type` sobre `interface` para shapes de datos. `interface` solo para contratos extensibles.
+- Usar `satisfies` en lugar de casteos cuando sea posible.
+
+## Estructura de archivos
+```
+src/app/api/          → Route Handlers de Next.js (solo HTTP, sin lógica de negocio)
+src/lib/              → Lógica de negocio pura, reutilizable
+src/components/       → Componentes React (sin fetch directo, reciben props)
+worker/processors/    → Procesadores BullMQ (lógica pesada asíncrona)
+prisma/schema.prisma  → Fuente de verdad del modelo de datos
+```
+
+## Convenciones de código
+- Funciones en camelCase, componentes en PascalCase, archivos de componentes en PascalCase.
+- Archivos de utilidad y lib en camelCase.
+- Constantes globales en SCREAMING_SNAKE_CASE en `src/lib/constants.ts`.
+- No escribir comentarios que explican qué hace el código. Solo comentar el **por qué** cuando no es obvio.
+- Sin `console.log` en producción. Usar `console.error` solo en catch blocks del worker.
+
+## Manejo de errores
+- En Route Handlers: siempre retornar `NextResponse.json({ error: string }, { status: N })`.
+- En workers: capturar error por bloque individualmente, marcar estado `ERROR` en DB, nunca dejar el job sin resolver.
+- En componentes: usar error boundaries o estados de error locales. No hacer throw sin captura.
+
+## Imports
+- Usar path aliases: `@/components/...`, `@/lib/...`, `@/types/...`.
+- No usar imports relativos con más de un nivel (`../../`).

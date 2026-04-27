@@ -1,0 +1,59 @@
+---
+description: Estado del desarrollo, sprints y decisiones de alcance del MVP. Consultar antes de proponer nuevas features o cambios de arquitectura.
+alwaysApply: true
+---
+
+# Sprints y alcance del MVP
+
+## Estado actual del proyecto
+Proyecto en setup inicial. No hay código de aplicación todavía.
+Cliente piloto: **Radio Dejavu**, Argentina.
+
+## Sprint 1 — Fundación (prioridad actual)
+- [ ] `docker-compose.yml` con PostgreSQL, Redis, Icecast
+- [ ] `Dockerfile` y `Dockerfile.worker`
+- [ ] `icecast.xml` de configuración base
+- [ ] Next.js 14 con App Router, TypeScript, Tailwind, shadcn/ui
+- [ ] Prisma schema completo (ver `docs/features/radioflow-implementation.md`)
+- [ ] `prisma/seed.ts` con Radio Dejavu + voces iniciales del catálogo
+- [ ] NextAuth.js: login, registro, sesión JWT
+- [ ] Layout del dashboard con sidebar
+
+## Sprint 2 — Voces y Editor
+- Catálogo de voces con preview de audio
+- Editor de bloques con drag & drop (@dnd-kit)
+- CRUD de programas, bloques y anunciantes
+
+## Sprint 3 — Generación IA
+- Integración Gemini API (guiones + TTS)
+- Worker BullMQ para procesamiento asíncrono
+- RSS de noticias + clima Open-Meteo
+- FFmpeg ensamblaje
+
+## Sprint 4 — Panel OBS y cierre MVP
+- Panel standalone con Web Audio API
+- Sistema de tokens para acceso al panel
+- Analytics básico
+- Testing end-to-end
+
+## Lo que NO entra en el MVP
+- Streaming real por Icecast (fase futura)
+- Storage en S3 (solo local en MVP)
+- Pagos / billing (Stripe va después del piloto)
+- App móvil
+- Multi-idioma
+- Integración con WhatsApp para saludos
+
+## Seed de Radio Dejavu
+El archivo `prisma/seed.ts` debe crear:
+1. Radio: nombre="Radio Dejavu", ciudad="Buenos Aires", provincia="Buenos Aires", slug="dejavu"
+2. Usuario admin: email="admin@dejavu.com.ar", password hasheada de "dejavu2024"
+3. Las 6 voces del catálogo inicial (ver tabla en el doc técnico)
+4. Asignación de todas las voces a Radio Dejavu
+
+Ejecutar con: `npx prisma db seed`
+
+## Notas de decisiones tomadas
+- **BullMQ sobre Bull:** BullMQ es la versión moderna de Bull, compatible con Redis 7. Usar BullMQ en todo el código nuevo.
+- **Web Audio API sobre Icecast:** El panel OBS reproduce audio directo desde el navegador. Icecast queda para una versión futura de streaming 24/7.
+- **Polling sobre SSE para progreso:** Implementar polling simple primero (2s). Si hay problemas de escala, migrar a SSE en sprint 4.

@@ -1,0 +1,78 @@
+---
+description: Reglas críticas de aislamiento multi-tenant. Aplicar siempre en cualquier archivo que toque la DB o las APIs.
+alwaysApply: true
+---
+
+# Multi-tenancy — Reglas de aislamiento (CRÍTICO)
+
+Cada radio es un tenant independiente. Una radio **nunca** puede ver ni modificar datos de otra.
+
+## Regla principal
+**Toda query Prisma que devuelva datos de negocio DEBE incluir `where: { radioId }` o verificar que el recurso pertenece al `radioId` del usuario autenticado.**
+
+```typescript
+// CORRECTO
+const programas = await prisma.programa.findMany({
+  where: { radioId: session.user.radioId }
+});
+
+// INCORRECTO — expone datos de todos los tenants
+const programas = await prisma.programa.findMany();
+```
+
+## Cómo obtener el radioId en Route Handlers
+```typescript
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.radioId) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+  const { radioId } = session.user;
+  // Usar radioId en todas las queries
+}
+```
+
+## Verificación de ownership en operaciones por ID
+Antes de actualizar o eliminar un recurso por su ID, verificar que pertenece al tenant:
+
+```typescript
+const programa = await prisma.programa.findUnique({
+  where: { id: params.id }
+});
+if (!programa || programa.radioId !== radioId) {
+  return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+}
+```
+
+Usar 404 (no 403) para no revelar que el recurso existe pero pertenece a otro tenant.
+
+## Panel OBS — autenticación por token
+El panel `/panel/[programaId]` no usa sesión (OBS no puede hacer login). Usa `panelToken`.
+
+```typescript
+// Validar acceso al panel
+const programa = await prisma.programa.findUnique({
+  where: { id: params.programaId }
+});
+if (!programa || programa.panelToken !== searchParams.get('token')) {
+  return notFound();
+}
+```
+
+## Storage de audio
+Los archivos de audio se organizan siempre por radioId:
+```
+/storage/audio/{radioId}/{programaId}/{bloqueId}.wav
+/storage/audio/{radioId}/{programaId}/programa_final.mp3
+```
+Nunca usar un path plano sin el radioId.
+
+## Modelos que NO tienen radioId directo
+- `Bloque` → pertenece a `Programa` → verificar `programa.radioId`
+- `Cuna` → pertenece a `Anunciante` → verificar `anunciante.radioId`
+- `Generacion` → pertenece a `Programa` → verificar `programa.radioId`
+
+Para estos, hacer include del padre y verificar en cascada.
