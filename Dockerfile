@@ -4,12 +4,7 @@ RUN apk add --no-cache ffmpeg wget
 
 FROM base AS deps
 COPY package*.json ./
-RUN npm config set registry https://registry.npmjs.org/ \
- && npm config set fetch-timeout 600000 \
- && npm config set fetch-retries 10 \
- && npm config set fetch-retry-mintimeout 20000 \
- && npm config set fetch-retry-maxtimeout 120000 \
- && npm ci --prefer-offline --no-audit --no-fund
+COPY node_modules ./node_modules
 COPY prisma ./prisma
 RUN npx prisma generate
 
