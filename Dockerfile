@@ -4,7 +4,7 @@ RUN apk add --no-cache ffmpeg wget
 
 FROM base AS deps
 COPY package*.json ./
-COPY node_modules ./node_modules
+RUN npm ci --no-audit --no-fund
 COPY prisma ./prisma
 RUN npx prisma generate
 
