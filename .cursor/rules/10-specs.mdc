@@ -1,0 +1,50 @@
+---
+description: How to read and implement feature and fix specs from docs/. Apply when opening a file in docs/features/ or docs/fixes/.
+alwaysApply: false
+---
+
+# Implementing from a spec
+
+Specs in `docs/features/` and `docs/fixes/` define **what** to build. Your job is **how**.
+
+## Reading a spec
+
+1. **Status** — only implement specs with `> Status: TODO`. Skip DONE or IN PROGRESS.
+2. **Files section** — this is your work order. Create, modify, and delete exactly the listed files.
+3. **Contracts** — TypeScript types and API shapes you must preserve exactly. Do not rename fields.
+4. **Behavior** — requirements written as observable outcomes. Implement them in the most idiomatic way for the stack.
+5. **Notes** — non-obvious constraints. Read carefully before writing code.
+6. **AC** — your definition of done. Every checkbox must pass before you consider the task complete.
+
+## Rules
+
+- The spec does not write your code. You do. Use the patterns in `.cursor/rules/` for conventions.
+- If a file already exists and the spec says "Modify", read the current file first.
+- If the spec says "Delete", also search for all import sites and remove them.
+- Never add features not listed in the spec's Files + Behavior sections.
+- When done, change the spec's `> Status: TODO` to `> Status: DONE`.
+
+## For fix specs
+
+- `Root cause` gives you the file and line. Read it before touching anything.
+- `Fix` tells you the intent. Write the minimal change that achieves it.
+- `Verify` is your test — confirm it passes before marking DONE.
+
+## Versioning
+
+The `> vN | YYYY-MM-DD` line tracks the spec version, not the code version.
+
+- **Do NOT bump** when only changing `> Status:`.
+- **Bump** when changing Files, Contracts, Behavior, Root cause, Fix, or Notes.
+- When bumping: increment N, update the date, add one line to `## Changelog`.
+
+Example:
+```
+> Status: IN PROGRESS
+> v2 | 2026-05-04
+```
+```
+## Changelog
+- v1 (2026-05-01): Initial spec
+- v2 (2026-05-04): Root cause updated after confirming error in production logs
+```

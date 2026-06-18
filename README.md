@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Airon
 
-## Getting Started
+MVP SaaS multi-tenant para crear programas de radio con IA (Gemini), generar audio por bloques con ElevenLabs y emitir desde un panel OBS.
 
-First, run the development server:
+## Stack
+- Next.js 16 (App Router) + TypeScript
+- PostgreSQL + Prisma
+- Redis + BullMQ
+- Gemini (`@google/genai`) para guiones
+- ElevenLabs API para TTS
+- FFmpeg para ensamblaje
+- Docker Compose (app, worker, db, redis)
+
+## Variables de entorno
+Copiar `.env.example` a `.env.local` y completar:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Variables minimas:
+- `DATABASE_URL`
+- `REDIS_URL`
+- `GEMINI_API_KEY`
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_MODEL_ID` (default: `eleven_turbo_v2_5`)
+- `ELEVENLABS_DEFAULT_VOICE_ID` (recomendado: `QK4xDwo9ESPHA4JNUpX3`)
+- `ELEVENLABS_OUTPUT_FORMAT` (default: `mp3_44100_128`)
+- `NEXTAUTH_SECRET`
+- `AUDIO_STORAGE_PATH`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Desarrollo local
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
+npx prisma db seed
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Worker en paralelo:
 
-## Learn More
+```bash
+npm run worker
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Docker Compose
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Primera vez en una máquina nueva:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cp .env.example .env
+# Completar GEMINI_API_KEY, ELEVENLABS_API_KEY y NEXTAUTH_SECRET en .env
+docker compose up --build
+```
 
-## Deploy on Vercel
+`NEXTAUTH_SECRET` puede generarse con: `openssl rand -base64 32`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Arranque completo (reconstruye imágenes con los últimos cambios):
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+docker compose up --build
+```
+
+En segundo plano:
+
+```bash
+npm run docker:up
+```
+
+Forzar rebuild completo tras cambios de UI o rutas (cabina, navbar, etc.):
+
+```bash
+npm run docker:rebuild
+```
+
+URLs en Docker (puerto 3000):
+- Dashboard: `http://localhost:3000/dashboard`
+- Cabina (transmisión OBS): `http://localhost:3000/cabina?token=<aireToken>`
+- La ruta `/aire` redirige automáticamente a `/cabina`
+
+El token de cabina aparece en **Configuración** del dashboard. El enlace **Cabina** del sidebar lo abre en pestaña nueva.
+
+Variables relevantes en `.env` / `docker-compose.yml`:
+- `NEXTAUTH_URL=http://localhost:3000` (debe coincidir con el host desde el que accedés)
+- `SPOTIFY_REDIRECT_URI=http://localhost:3000/api/spotify/callback`
+
+Para omitir el seed en reinicios (DB ya inicializada):
+
+```bash
+DOCKER_SKIP_SEED=1 docker compose up --build
+```
+
+Inicializacion manual de DB:
+
+```bash
+docker compose exec app npx prisma migrate deploy
+docker compose exec app npx prisma db seed
+```
+
+## Credenciales seed
+- Email: `admin@dejavu.com.ar`
+- Password: `dejavu2024`

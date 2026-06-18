@@ -1,0 +1,383 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum Rol {
+  ADMIN
+  OPERADOR
+}
+
+enum GeneroVoz {
+  MASCULINA
+  FEMENINA
+  NEUTRA
+}
+
+enum TonoVoz {
+  SERIO
+  CALIDO
+  ENERGETICO
+  AMIGABLE
+  FORMAL
+}
+
+enum EstadoPrograma {
+  BORRADOR
+  GENERANDO
+  LISTO
+  EN_EMISION
+  ARCHIVADO
+}
+
+enum TipoBloque {
+  INTRO
+  NOTICIAS
+  CUNA
+  ENTRETENIMIENTO
+  TRANSICION
+  SALUDO
+  CIERRE
+  APERTURA
+  NOTICIA
+  PUBLICIDAD
+}
+
+enum EstadoBloque {
+  PENDIENTE
+  GENERANDO_GUION
+  GUION_LISTO
+  GENERANDO_AUDIO
+  LISTO
+  ERROR
+}
+
+enum EstadoGeneracion {
+  EN_COLA
+  PROCESANDO
+  COMPLETADA
+  ERROR
+}
+
+enum EstadoSesionSpotify {
+  ACTIVA
+  PAUSADA
+  FINALIZADA
+}
+
+enum EstadoPresentacion {
+  PENDIENTE
+  GENERANDO
+  LISTA
+  ERROR
+}
+
+enum TipoSlot {
+  DJ
+}
+
+enum ProveedorConsumo {
+  GEMINI
+  ELEVENLABS
+}
+
+enum TipoConsumoApi {
+  TEXTO
+  VOZ
+}
+
+model Radio {
+  id              String    @id @default(cuid())
+  nombre          String
+  slug            String    @unique
+  ciudad          String
+  provincia       String
+  pais            String    @default("Argentina")
+  logoUrl         String?
+  plan            Plan      @default(STARTER)
+  fuentesNoticias String[]
+  estiloLocucion  String?
+  aireToken            String    @unique @default(cuid())
+  icecastMountpoint    String?
+  createdAt            DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  usuarios        Usuario[]
+  programas       Programa[]
+  anunciantes     Anunciante[]
+  vocesAsignadas  RadioVoz[]
+  spotifyConexion SpotifyConexion?
+  spotifySesiones SpotifySesion[]
+  slotsGrilla     SlotGrilla[]
+  eventosGrilla   EventoGrilla[]
+  consumoApi      ConsumoApiRegistro[]
+}
+
+model SlotGrilla {
+  id                       String    @id @default(cuid())
+  radioId                  String
+  radio                    Radio     @relation(fields: [radioId], references: [id], onDelete: Cascade)
+  diaDeSemana              Int
+  horaInicio               String
+  duracionMin              Int
+  tipo                     TipoSlot  @default(DJ)
+  esActivo                 Boolean   @default(true)
+  playlistId               String?
+  playlistNombre           String?
+  voz1Id                   String?
+  voz2Id                   String?
+  voz1                     Voz?      @relation("SlotGrillaVoz1", fields: [voz1Id], references: [id], onDelete: SetNull)
+  voz2                     Voz?      @relation("SlotGrillaVoz2", fields: [voz2Id], references: [id], onDelete: SetNull)
+  presentacionCadaTemas    Int       @default(1)
+  djHoraActiva             Boolean   @default(false)
+  djHoraIntervaloMin       Int?
+  djClimaActivo            Boolean   @default(false)
+  djClimaIntervaloMin      Int?
+  djPublicidadActiva       Boolean   @default(false)
+  djPublicidadIntervaloMin Int?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+}
+
+model EventoGrilla {
+  id                       String    @id @default(cuid())
+  radioId                  String
+  radio                    Radio     @relation(fields: [radioId], references: [id], onDelete: Cascade)
+  fecha                    DateTime  @db.Date
+  horaInicio               String
+  duracionMin              Int
+  tipo                     TipoSlot  @default(DJ)
+  playlistId               String?
+  playlistNombre           String?
+  voz1Id                   String?
+  voz2Id                   String?
+  voz1                     Voz?      @relation("EventoGrillaVoz1", fields: [voz1Id], references: [id], onDelete: SetNull)
+  voz2                     Voz?      @relation("EventoGrillaVoz2", fields: [voz2Id], references: [id], onDelete: SetNull)
+  presentacionCadaTemas    Int       @default(1)
+  djHoraActiva             Boolean   @default(false)
+  djHoraIntervaloMin       Int?
+  djClimaActivo            Boolean   @default(false)
+  djClimaIntervaloMin      Int?
+  djPublicidadActiva       Boolean   @default(false)
+  djPublicidadIntervaloMin Int?
+  createdAt                DateTime  @default(now())
+}
+
+model Usuario {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  nombre    String
+  rol       Rol      @default(OPERADOR)
+  radioId   String
+  radio     Radio    @relation(fields: [radioId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Voz {
+  id              String    @id @default(cuid())
+  nombre          String    @unique
+  descripcion     String
+  genero          GeneroVoz
+  tono            TonoVoz
+  idioma          String    @default("es-AR")
+  geminiVoiceId   String    @unique
+  previewUrl      String?
+  esActiva        Boolean   @default(true)
+  esPremium       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  radiosAsignadas      RadioVoz[]
+  bloques              Bloque[]
+  programasVozDefecto  Programa[] @relation("ProgramaVozPorDefecto")
+  slotsGrillaVoz1      SlotGrilla[]  @relation("SlotGrillaVoz1")
+  slotsGrillaVoz2      SlotGrilla[]  @relation("SlotGrillaVoz2")
+  eventosGrillaVoz1    EventoGrilla[] @relation("EventoGrillaVoz1")
+  eventosGrillaVoz2    EventoGrilla[] @relation("EventoGrillaVoz2")
+}
+
+model RadioVoz {
+  id             String  @id @default(cuid())
+  radioId        String
+  vozId          String
+  alias          String?
+  nombreAlAire   String?
+  personalidad   String?
+  radio          Radio   @relation(fields: [radioId], references: [id])
+  voz            Voz     @relation(fields: [vozId], references: [id])
+
+  @@unique([radioId, vozId])
+}
+
+model Programa {
+  id              String         @id @default(cuid())
+  nombre          String
+  descripcion     String?
+  radioId         String
+  radio           Radio          @relation(fields: [radioId], references: [id])
+  estado          EstadoPrograma @default(BORRADOR)
+  duracionEstimada Int?
+  panelUrl        String?
+  panelToken        String?        @unique
+  vozPorDefectoId   String?
+  vozPorDefecto     Voz?           @relation("ProgramaVozPorDefecto", fields: [vozPorDefectoId], references: [id], onDelete: SetNull)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  bloques           Bloque[]
+  generaciones    Generacion[]
+}
+
+model Bloque {
+  id                  String       @id @default(cuid())
+  programaId          String
+  programa            Programa     @relation(fields: [programaId], references: [id], onDelete: Cascade)
+  tipo                TipoBloque
+  orden               Int
+  titulo              String
+  vozId               String?
+  voz                 Voz?         @relation(fields: [vozId], references: [id])
+  elevenlabsVoiceId   String?
+  elevenlabsVoiceId2  String?
+  config              Json?
+  guion               String?
+  audioUrl            String?
+  duracion            Int?
+  estado              EstadoBloque @default(PENDIENTE)
+  previewCachedAt     DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+enum EstadoPagoPublicidad {
+  PENDIENTE
+  PAGADO
+  PARCIAL
+}
+
+model Anunciante {
+  id             String                 @id @default(cuid())
+  radioId        String
+  radio          Radio                  @relation(fields: [radioId], references: [id], onDelete: Cascade)
+  nombre         String
+  contacto       String?
+  telefono       String?
+  email          String?
+  direccion      String?
+  rubro          String?
+  notas          String?
+  montoMensual   Float?
+  texto          String?
+  estilo         String                 @default("energetico")
+  audioUrl       String?
+  duracion       Int?
+  esActivo       Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  pagosMensuales PublicidadPagoMensual[]
+}
+
+model PublicidadPagoMensual {
+  id           String               @id @default(cuid())
+  anuncianteId String
+  anunciante   Anunciante           @relation(fields: [anuncianteId], references: [id], onDelete: Cascade)
+  anio         Int
+  mes          Int
+  monto        Float?
+  estado       EstadoPagoPublicidad @default(PENDIENTE)
+  fechaPago    DateTime?
+  notas        String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@unique([anuncianteId, anio, mes])
+  @@index([anio, mes])
+}
+
+model Generacion {
+  id           String          @id @default(cuid())
+  programaId   String
+  programa     Programa        @relation(fields: [programaId], references: [id])
+  estado       EstadoGeneracion @default(EN_COLA)
+  audioFinalUrl String?
+  duracionTotal Int?
+  costoTokens  Float?
+  errorLog     String?
+  createdAt    DateTime        @default(now())
+  completadaAt DateTime?
+}
+
+model SpotifyConexion {
+  id             String            @id @default(cuid())
+  radioId        String            @unique
+  radio          Radio             @relation(fields: [radioId], references: [id], onDelete: Cascade)
+  spotifyUserId  String
+  accessToken    String
+  refreshToken   String
+  tokenExpiresAt DateTime
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  sesiones       SpotifySesion[]
+}
+
+model SpotifySesion {
+  id             String               @id @default(cuid())
+  radioId        String
+  radio          Radio                @relation(fields: [radioId], references: [id], onDelete: Cascade)
+  conexionId     String
+  conexion       SpotifyConexion      @relation(fields: [conexionId], references: [id], onDelete: Cascade)
+  playlistId     String
+  playlistNombre String
+  voz1Id         String?
+  voz2Id         String?
+  estado         EstadoSesionSpotify   @default(ACTIVA)
+  panelToken     String               @unique @default(cuid())
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  presentaciones PresentacionTrack[]
+}
+
+model PresentacionTrack {
+  id             String              @id @default(cuid())
+  sesionId       String
+  sesion         SpotifySesion       @relation(fields: [sesionId], references: [id], onDelete: Cascade)
+  trackSpotifyId String
+  trackNombre    String
+  artistaNombre  String
+  albumNombre    String
+  duracionMs     Int
+  coverUrl       String?
+  guion          String?
+  audioUrl       String?
+  estado         EstadoPresentacion  @default(PENDIENTE)
+  errorLog       String?
+  retries        Int                 @default(0)
+  createdAt      DateTime            @default(now())
+
+  @@unique([sesionId, trackSpotifyId])
+}
+
+model ConsumoApiRegistro {
+  id                String           @id @default(cuid())
+  radioId           String
+  radio             Radio            @relation(fields: [radioId], references: [id], onDelete: Cascade)
+  proveedor         ProveedorConsumo
+  tipo              TipoConsumoApi
+  tokensEntrada     Int?
+  tokensSalida      Int?
+  caracteres        Int?
+  costoEstimadoUsd  Float
+  modelo            String?
+  createdAt         DateTime         @default(now())
+
+  @@index([radioId, createdAt])
+  @@index([radioId, proveedor, createdAt])
+}
