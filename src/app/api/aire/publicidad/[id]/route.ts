@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
-import { access } from "node:fs/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { contentTypeDesdeRutaAudio, resolverRutaAudioAlmacenado } from "@/lib/publicidad/audioPath";
 
 export async function GET(
   request: NextRequest,
@@ -30,16 +30,15 @@ export async function GET(
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
-  try {
-    await access(publicidad.audioUrl);
-  } catch {
+  const filePath = await resolverRutaAudioAlmacenado(publicidad.audioUrl);
+  if (!filePath) {
     return NextResponse.json({ error: "Audio no disponible" }, { status: 404 });
   }
 
-  const stream = createReadStream(publicidad.audioUrl);
+  const stream = createReadStream(filePath);
   return new Response(stream as unknown as ReadableStream, {
     headers: {
-      "Content-Type": "audio/mpeg",
+      "Content-Type": contentTypeDesdeRutaAudio(filePath),
       "Cache-Control": "no-cache",
     },
   });

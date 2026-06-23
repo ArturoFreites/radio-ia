@@ -54,7 +54,34 @@ REGLAS ESTRICTAS:
 - Sin frases como "Aquí está el guión:" o cualquier introducción
 - Mencionar el nombre de la radio (${config.radioNombre})
 - Dar la bienvenida a los oyentes de forma cálida y profesional
-- El tono debe sonar a apertura de programa en vivo, no a presentación de un tema musical
+- Español rioplatense: voseo, giros naturales del habla porteña, tono directo y cercano, sin exagerar
+
+Escribe únicamente el texto que dirá el locutor.`;
+}
+
+export function buildTransicionSlotPrompt(config: {
+  programaNombre: string;
+  djNombre: string;
+  estiloRadio: string;
+  locutor?: LocutorPromptConfig;
+  primeraCancion?: { nombre: string; artista: string };
+}): string {
+  const primeraCancionLine = config.primeraCancion
+    ? `\nPRIMERA CANCIÓN DEL PROGRAMA: "${config.primeraCancion.nombre}" de ${config.primeraCancion.artista}\nCerrá la transición mencionando que arrancamos con ese tema.`
+    : "";
+
+  return `${lineasLocutorMonologo(config.locutor)}Escribe una transición radial breve que presenta el programa que viene a continuación. Solo el texto que dirá el locutor, nada más.
+
+PROGRAMA ENTRANTE: ${config.programaNombre}
+LOCUTOR / DJ: ${config.djNombre}
+ESTILO DE LA RADIO: ${config.estiloRadio}${primeraCancionLine}
+
+REGLAS ESTRICTAS:
+- Solo texto plano que será leído en voz alta
+- Sin markdown, sin asteriscos, sin acotaciones, sin etiquetas de turno
+- Sin frases como "Aquí está el guión:" o cualquier introducción
+- Despedí brevemente lo que termina y presentá el programa entrante por nombre
+- Tono de continuidad en vivo, no apertura de emisora
 - Máximo 60 palabras
 - Español rioplatense: voseo, giros naturales del habla porteña, tono directo y cercano, sin exagerar
 

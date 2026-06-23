@@ -7,7 +7,18 @@ import { ModoDJ, type ModoDJHandle } from "@/components/aire/ModoDJ";
 import { PublicidadDemoModal } from "@/components/aire/PublicidadDemoModal";
 import { AironLogo } from "@/components/brand/AironLogo";
 import { djConfigFromRow, djConfigSignature } from "@/lib/grilla/djConfigSchema";
-import type { EstadoAire, ModoAire } from "@/types/grilla";
+import { msInicioSlotArgentina } from "@/lib/grilla/tiempo";
+import type { EstadoAire, ModoAire, SlotHoy } from "@/types/grilla";
+
+type TransicionSlotCache = {
+  audioUrl: string | null;
+  playlistId: string | null;
+  playlistNombre: string;
+  djNombre: string;
+};
+
+const UMBRAL_PREFETCH_TRANSICION_SEC = 90;
+const UMBRAL_DISPARO_TRANSICION_SEC = 3;
 
 export type AireControllerProps = {
   radioId: string;
@@ -41,6 +52,10 @@ export function AireController({
   const [modalPublicidadDemo, setModalPublicidadDemo] = useState(false);
   const djRef = useRef<ModoDJHandle | null>(null);
   const slotTimeoutRef = useRef<number | null>(null);
+  const slotActivoAnteriorRef = useRef<string | null>(null);
+  const transicionDisparadaRef = useRef<string | null>(null);
+  const prefetchTransicionRef = useRef<Map<string, TransicionSlotCache>>(new Map());
+  const prefetchEnCursoRef = useRef<Set<string>>(new Set());
 
   const fetchEstado = useCallback(async (): Promise<void> => {
     if (slotTimeoutRef.current !== null) {
@@ -82,6 +97,101 @@ export function AireController({
     setModo(desiredModo);
   }, [desiredModo]);
 
+  const ejecutarTransicionSlot = useCallback(
+    async (slot: SlotHoy, cache?: TransicionSlotCache | null): Promise<void> => {
+      if (modo !== "DJ" || transicionDisparadaRef.current === slot.id) return;
+      if (!slot.playlistId) return;
+
+      transicionDisparadaRef.current = slot.id;
+
+      let data = cache ?? prefetchTransicionRef.current.get(slot.id) ?? null;
+      if (!data) {
+        try {
+          const res = await fetch("/api/aire/transicion-slot", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: aireToken, slotId: slot.id }),
+          });
+          if (res.ok) {
+            data = (await res.json()) as TransicionSlotCache;
+            prefetchTransicionRef.current.set(slot.id, data);
+          }
+        } catch {
+          /* continuar sin audio generado */
+        }
+      }
+
+      const playlistId = data?.playlistId ?? slot.playlistId;
+      const playlistNombre = data?.playlistNombre ?? slot.playlistNombre ?? "Modo DJ";
+      const djNombre = data?.djNombre ?? (slot.voz1Nombre ? `DJ ${slot.voz1Nombre}` : "Airon");
+
+      await djRef.current?.transicionarSlot({
+        playlistId,
+        playlistNombre,
+        audioUrl: data?.audioUrl ?? null,
+        djNombre,
+      });
+    },
+    [aireToken, modo],
+  );
+
+  useEffect(() => {
+    const siguiente = estado?.siguiente;
+    const segundos = estado?.segundosHastaFin;
+    if (!siguiente || segundos === null || segundos > UMBRAL_PREFETCH_TRANSICION_SEC) return;
+    if (prefetchTransicionRef.current.has(siguiente.id) || prefetchEnCursoRef.current.has(siguiente.id)) {
+      return;
+    }
+
+    prefetchEnCursoRef.current.add(siguiente.id);
+    void fetch("/api/aire/transicion-slot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: aireToken, slotId: siguiente.id }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as TransicionSlotCache;
+        prefetchTransicionRef.current.set(siguiente.id, data);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        prefetchEnCursoRef.current.delete(siguiente.id);
+      });
+  }, [aireToken, estado?.segundosHastaFin, estado?.siguiente]);
+
+  useEffect(() => {
+    const siguiente = estado?.siguiente;
+    const segundos = estado?.segundosHastaFin;
+    if (modo !== "DJ" || !siguiente || segundos === null || segundos > UMBRAL_DISPARO_TRANSICION_SEC) {
+      return;
+    }
+
+    const cache = prefetchTransicionRef.current.get(siguiente.id);
+    void ejecutarTransicionSlot(siguiente, cache);
+  }, [ejecutarTransicionSlot, estado?.segundosHastaFin, estado?.siguiente, modo]);
+
+  useEffect(() => {
+    const activo = estado?.ahora;
+    if (!activo) return;
+
+    const anterior = slotActivoAnteriorRef.current;
+    if (
+      anterior &&
+      anterior !== activo.id &&
+      modo === "DJ" &&
+      transicionDisparadaRef.current !== activo.id
+    ) {
+      const cache = prefetchTransicionRef.current.get(activo.id);
+      void ejecutarTransicionSlot(activo, cache);
+    }
+
+    if (anterior !== activo.id) {
+      transicionDisparadaRef.current = null;
+    }
+    slotActivoAnteriorRef.current = activo.id;
+  }, [ejecutarTransicionSlot, estado?.ahora, modo]);
+
   const slots = estado?.slotsDelDia ?? [];
 
   const mensajeIdle = useMemo((): string => {
@@ -103,6 +213,11 @@ export function AireController({
 
   const voiceId = estado?.vozGeminiId ?? estado?.ahora?.voz1GeminiId ?? null;
   const djNombre = estado?.ahora?.voz1Nombre ?? "Airon";
+
+  const slotInicioMs = useMemo((): number | null => {
+    if (!slotActivo) return null;
+    return msInicioSlotArgentina(new Date(), slotActivo.horaInicio);
+  }, [slotActivo?.id, slotActivo?.horaInicio]);
 
   const reproducirAudioDemo = useCallback(
     async (blob: Blob): Promise<void> => {
@@ -137,6 +252,7 @@ export function AireController({
         radioNombre={radioNombre}
         aireToken={aireToken}
         voiceId={voiceId}
+        slotInicioMs={slotInicioMs}
         djConfig={djConfig}
         presentacionCadaTemas={djConfig.presentacionCadaTemas}
         djNombre={djNombre}

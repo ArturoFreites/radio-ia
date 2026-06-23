@@ -9,6 +9,8 @@ type PresentacionOverlayProps = {
   track: SpotifySdkTrack | null;
   audioProgress: number;
   titulo?: string;
+  etiqueta?: string;
+  subtitulo?: string;
   scoped?: boolean;
 };
 
@@ -19,12 +21,15 @@ export function PresentacionOverlay({
   track,
   audioProgress,
   titulo,
+  etiqueta,
+  subtitulo,
   scoped = false,
 }: PresentacionOverlayProps): React.ReactElement {
   const cover = track?.album.images[0]?.url;
   const artistas = track?.artists?.map((a) => a.name).join(" — ") ?? "";
   const [coverFallida, setCoverFallida] = useState(false);
   const modoIntro = Boolean(titulo);
+  const encabezado = etiqueta ?? (modoIntro ? "En vivo" : "A continuación");
 
   useEffect(() => {
     setCoverFallida(false);
@@ -50,7 +55,7 @@ export function PresentacionOverlay({
       `}</style>
       <AireScopedOverlay visible={visible} scoped={scoped}>
         <p className="mb-4 text-center text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--primary)]">
-          {modoIntro ? "En vivo" : "A continuación"}
+          {encabezado}
         </p>
         {mostrarPortada ? (
           <div
@@ -73,7 +78,9 @@ export function PresentacionOverlay({
           </div>
         )}
         <h3 className="text-center text-lg font-semibold tracking-tight text-white">{tituloVisible}</h3>
-        {!modoIntro ? (
+        {subtitulo ? (
+          <p className="mt-1 text-center text-sm text-[color:var(--muted)]">{subtitulo}</p>
+        ) : !modoIntro ? (
           <p className="mt-1 text-center text-sm text-[color:var(--muted)]">
             {artistas}
             {track?.album.name ? ` · ${track.album.name}` : ""}

@@ -18,7 +18,7 @@ async function main(): Promise<void> {
       data: {
         nombre: "Radio Dejavu",
         slug,
-        ciudad: "Buenos Aires",
+        ciudad: "Lezama",
         provincia: "Buenos Aires",
         plan: Plan.STARTER,
         fuentesNoticias: [
@@ -29,6 +29,13 @@ async function main(): Promise<void> {
         estiloLocucion: "Profesional, cercano y dinamico.",
       },
     }));
+
+  if (existing && (existing.ciudad !== "Lezama" || existing.provincia !== "Buenos Aires")) {
+    await prisma.radio.update({
+      where: { id: existing.id },
+      data: { ciudad: "Lezama", provincia: "Buenos Aires" },
+    });
+  }
 
   const hashedPassword = await bcrypt.hash("dejavu2024", 12);
 

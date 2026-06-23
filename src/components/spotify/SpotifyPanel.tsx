@@ -22,6 +22,12 @@ export type SpotifyPanelHandle = {
   fadeInResume: (totalMs?: number) => Promise<void>;
   skipToNextTrack: () => Promise<void>;
   estaOcupado: () => boolean;
+  transicionarSlot: (params: {
+    playlistId: string;
+    playlistNombre: string;
+    audioUrl: string | null;
+    djNombre?: string;
+  }) => Promise<void>;
 };
 
 type SpotifyPanelProps = {
@@ -96,6 +102,7 @@ export const SpotifyPanel = forwardRef<SpotifyPanelHandle, SpotifyPanelProps>(fu
   const temasCountRef = useRef(0);
   const presentacionCadaTemasRef = useRef(presentacionCadaTemas);
   const transicionIniciadaRef = useRef(false);
+  const transicionSlotIniciadaRef = useRef(false);
   const trackAnteriorRef = useRef<string | null>(null);
   const audioUrlPresentacionRef = useRef<string | null>(null);
   const presentacionListaRef = useRef(false);
@@ -137,6 +144,8 @@ export const SpotifyPanel = forwardRef<SpotifyPanelHandle, SpotifyPanelProps>(fu
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayTrack, setOverlayTrack] = useState<SpotifySdkTrack | null>(null);
   const [overlayTitulo, setOverlayTitulo] = useState<string | undefined>(undefined);
+  const [overlayEtiqueta, setOverlayEtiqueta] = useState<string | undefined>(undefined);
+  const [overlaySubtitulo, setOverlaySubtitulo] = useState<string | undefined>(undefined);
   const [audioProgress, setAudioProgress] = useState(0);
   const [presentacionEstado, setPresentacionEstado] = useState<"idle" | "generando" | "lista">("idle");
   const [dialogoReproduciendo, setDialogoReproduciendo] = useState(false);
@@ -329,6 +338,89 @@ export const SpotifyPanel = forwardRef<SpotifyPanelHandle, SpotifyPanelProps>(fu
     setPresentacionEstado("idle");
   }, [limpiarBloqueoTimeout, limpiarTimeoutEspera, reproducirAudioUrl]);
 
+  const runTransicionSlot = useCallback(
+    async (params: {
+      playlistId: string;
+      playlistNombre: string;
+      audioUrl: string | null;
+      djNombre?: string;
+    }): Promise<void> => {
+      const player = playerRef.current;
+      if (!player || transicionSlotIniciadaRef.current || transicionIniciadaRef.current) return;
+      transicionSlotIniciadaRef.current = true;
+      transicionIniciadaRef.current = true;
+      limpiarTimeoutEspera();
+      limpiarBloqueoTimeout();
+      esperandoPresentacionRef.current = false;
+      pausaBloqueoSolicitadaRef.current = false;
+
+      try {
+        await fadeSpotifyPlayerVolume(player, volumeRef.current, 0, 3000);
+        volumeRef.current = 0;
+        await player.pause();
+
+        setOverlayTrack(null);
+        setOverlayTitulo(params.playlistNombre);
+        setOverlayEtiqueta("Siguiente programa");
+        setOverlaySubtitulo(params.djNombre);
+        setOverlayVisible(true);
+        setAudioProgress(0);
+
+        if (params.audioUrl) {
+          try {
+            await reproducirAudioUrl(params.audioUrl);
+          } catch {
+            /* continuar sin voz */
+          }
+        }
+
+        const deviceId = deviceIdRef.current;
+        if (deviceId) {
+          const t = accessTokenRef.current || (await refrescarToken());
+          await spotifyApi(deviceId, t, "/me/player/play", {
+            method: "PUT",
+            body: JSON.stringify({ context_uri: params.playlistId, offset: { position: 0 } }),
+          });
+        }
+
+        playlistIdRef.current = params.playlistId;
+
+        temasCountRef.current = 0;
+        presentacionEncoladaRef.current = false;
+        presentacionListaRef.current = false;
+        audioUrlPresentacionRef.current = null;
+        trackAnteriorRef.current = null;
+        setPresentacionEstado("idle");
+      } catch {
+        /* intentar retomar reproducción */
+      } finally {
+        setDialogoReproduciendo(false);
+        setOverlayVisible(false);
+        setOverlayTitulo(undefined);
+        setOverlayEtiqueta(undefined);
+        setOverlaySubtitulo(undefined);
+        setAudioProgress(0);
+
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 500);
+        });
+
+        try {
+          await player.activateElement().catch(() => undefined);
+          await player.resume();
+          await fadeSpotifyPlayerVolume(player, 0, 0.85, 2500);
+          volumeRef.current = 0.85;
+        } catch {
+          /* ignore */
+        }
+
+        transicionSlotIniciadaRef.current = false;
+        transicionIniciadaRef.current = false;
+      }
+    },
+    [limpiarBloqueoTimeout, limpiarTimeoutEspera, refrescarToken, reproducirAudioUrl],
+  );
+
   const manejarRespuestaPresentacion = useCallback(
     (trackId: string, data: { estado?: string; audioUrl?: string }): void => {
       if (data.estado === "LISTA" && data.audioUrl) {
@@ -466,9 +558,13 @@ export const SpotifyPanel = forwardRef<SpotifyPanelHandle, SpotifyPanelProps>(fu
         volumeRef.current = target;
       },
       skipToNextTrack: (): Promise<void> => onManualSkip(),
-      estaOcupado: (): boolean => transicionIniciadaRef.current || esperandoPresentacionRef.current,
+      estaOcupado: (): boolean =>
+        transicionIniciadaRef.current ||
+        transicionSlotIniciadaRef.current ||
+        esperandoPresentacionRef.current,
+      transicionarSlot: (params): Promise<void> => runTransicionSlot(params),
     }),
-    [onManualSkip],
+    [onManualSkip, runTransicionSlot],
   );
 
   useEffect(() => {
@@ -537,7 +633,7 @@ export const SpotifyPanel = forwardRef<SpotifyPanelHandle, SpotifyPanelProps>(fu
             });
             await spotifyApi(device_id, t, "/me/player/play", {
               method: "PUT",
-              body: JSON.stringify({ context_uri: playlistId, offset: { position: 0 } }),
+              body: JSON.stringify({ context_uri: playlistIdRef.current, offset: { position: 0 } }),
             });
 
             await fadeSpotifyPlayerVolume(player, 0, targetVolume, 2500);
@@ -649,11 +745,9 @@ export const SpotifyPanel = forwardRef<SpotifyPanelHandle, SpotifyPanelProps>(fu
     limpiarBloqueoTimeout,
     limpiarTimeoutEspera,
     pedirPresentacion,
-    playlistId,
     refrescarToken,
     runTransicion,
     modo,
-    sesionId,
   ]);
 
   useEffect(() => {
@@ -757,6 +851,8 @@ export const SpotifyPanel = forwardRef<SpotifyPanelHandle, SpotifyPanelProps>(fu
         track={overlayTrack}
         audioProgress={audioProgress}
         titulo={overlayTitulo}
+        etiqueta={overlayEtiqueta}
+        subtitulo={overlaySubtitulo}
         scoped={modo === "aire"}
       />
 

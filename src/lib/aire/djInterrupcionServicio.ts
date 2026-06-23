@@ -1,10 +1,14 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { descripcionClimaCodigo, formatHoraArgentina, parseClimaJson } from "@/lib/aire/djInterrupciones";
 import type { RadioPorAireToken } from "@/lib/aire/validarToken";
 import { fetchClima } from "@/lib/entretenimiento/clima";
 import { generarTextoGemini } from "@/lib/gemini/guiones";
 import { synthesizeElevenLabsBuffer } from "@/lib/gemini/tts";
+import {
+  contentTypeDesdeRutaAudio,
+  resolverRutaAudioAlmacenado,
+  type AudioAlmacenadoContentType,
+} from "@/lib/publicidad/audioPath";
 import { publicidadTieneContenido } from "@/lib/publicidad/filtros";
 import { normalizarGuionParaLocucion } from "@/lib/publicidad/guionLocucion";
 import { prisma } from "@/lib/prisma";
@@ -41,17 +45,18 @@ export async function generarGuionInterrupcionDj(
   radio: RadioPorAireToken,
   tipo: TipoInterrupcionDj,
   publicidadId?: string,
+  horaObjetivoMs?: number,
 ): Promise<string | null> {
   const estilo = radio.estiloLocucion ?? "cálido y cercano";
 
   if (tipo === "HORA") {
-    const hora = formatHoraArgentina(new Date());
+    const hora = formatHoraArgentina(new Date(horaObjetivoMs ?? Date.now()));
     const guion = (await generarTextoGemini(buildHoraPrompt(hora, estilo), radio.id)).trim();
     return guion || null;
   }
 
   if (tipo === "CLIMA") {
-    const rawClima = await fetchClima(radio.ciudad);
+    const rawClima = await fetchClima();
     const clima = parseClimaJson(rawClima);
     if (!clima) return null;
     const guion = (
@@ -85,7 +90,10 @@ export async function generarGuionInterrupcionDj(
   return normalizarGuionParaLocucion(publicidad.texto?.trim() ?? "") || null;
 }
 
-async function leerAudioPublicidad(radioId: string, publicidadId: string): Promise<Buffer | null> {
+async function leerAudioPublicidad(
+  radioId: string,
+  publicidadId: string,
+): Promise<{ buffer: Buffer; contentType: AudioAlmacenadoContentType } | null> {
   const publicidad = await prisma.anunciante.findFirst({
     where: {
       id: publicidadId,
@@ -96,18 +104,19 @@ async function leerAudioPublicidad(radioId: string, publicidadId: string): Promi
   });
   if (!publicidad?.audioUrl) return null;
 
-  const filePath = path.isAbsolute(publicidad.audioUrl)
-    ? publicidad.audioUrl
-    : path.join(process.cwd(), publicidad.audioUrl.replace(/^\//, ""));
+  const filePath = await resolverRutaAudioAlmacenado(publicidad.audioUrl);
+  if (!filePath) return null;
+
   try {
-    return await readFile(filePath);
+    const buffer = await readFile(filePath);
+    return { buffer, contentType: contentTypeDesdeRutaAudio(filePath) };
   } catch {
     return null;
   }
 }
 
 export type ResultadoAudioInterrupcionDj =
-  | { ok: true; buffer: Buffer; contentType: "audio/mpeg" }
+  | { ok: true; buffer: Buffer; contentType: AudioAlmacenadoContentType }
   | { ok: false; status: number; error: string };
 
 export async function generarAudioInterrupcionDj(params: {
@@ -115,13 +124,14 @@ export async function generarAudioInterrupcionDj(params: {
   tipo: TipoInterrupcionDj;
   voiceId: string;
   publicidadId?: string;
+  horaObjetivoMs?: number;
 }): Promise<ResultadoAudioInterrupcionDj> {
-  const { radio, tipo, voiceId, publicidadId } = params;
+  const { radio, tipo, voiceId, publicidadId, horaObjetivoMs } = params;
 
   if (tipo === "PUBLICIDAD" && publicidadId) {
     const pregrabado = await leerAudioPublicidad(radio.id, publicidadId);
     if (pregrabado) {
-      return { ok: true, buffer: pregrabado, contentType: "audio/mpeg" };
+      return { ok: true, buffer: pregrabado.buffer, contentType: pregrabado.contentType };
     }
   }
 
@@ -138,7 +148,7 @@ export async function generarAudioInterrupcionDj(params: {
     return { ok: false, status: 400, error: "Voz no disponible para esta radio" };
   }
 
-  const guion = await generarGuionInterrupcionDj(radio, tipo, publicidadId);
+  const guion = await generarGuionInterrupcionDj(radio, tipo, publicidadId, horaObjetivoMs);
   if (!guion) {
     return { ok: false, status: 502, error: "No se pudo obtener el texto de publicidad" };
   }

@@ -11,6 +11,12 @@ export type ModoDJHandle = {
   fadeOutPause: (totalMs?: number) => Promise<void>;
   fadeInResume: (totalMs?: number) => Promise<void>;
   skipToNextTrack: () => Promise<void>;
+  transicionarSlot: (params: {
+    playlistId: string;
+    playlistNombre: string;
+    audioUrl: string | null;
+    djNombre?: string;
+  }) => Promise<void>;
 };
 
 type ModoDJProps = {
@@ -21,6 +27,7 @@ type ModoDJProps = {
   radioNombre: string;
   aireToken: string;
   voiceId: string | null;
+  slotInicioMs: number | null;
   djConfig: DjInterrupcionesConfig;
   presentacionCadaTemas: number;
   djNombre?: string;
@@ -36,6 +43,7 @@ export const ModoDJ = forwardRef<ModoDJHandle, ModoDJProps>(function ModoDJ(
     radioNombre,
     aireToken,
     voiceId,
+    slotInicioMs,
     djConfig,
     presentacionCadaTemas,
     djNombre,
@@ -59,6 +67,9 @@ export const ModoDJ = forwardRef<ModoDJHandle, ModoDJProps>(function ModoDJ(
       skipToNextTrack: async (): Promise<void> => {
         await spotifyRef.current?.skipToNextTrack();
       },
+      transicionarSlot: async (params): Promise<void> => {
+        await spotifyRef.current?.transicionarSlot(params);
+      },
     }),
     [],
   );
@@ -74,6 +85,7 @@ export const ModoDJ = forwardRef<ModoDJHandle, ModoDJProps>(function ModoDJ(
     aireToken,
     config: djConfig,
     voiceId,
+    slotInicioMs,
     enabled: Boolean(voiceId),
     onBeforePlay: async (): Promise<void> => {
       await spotifyRef.current?.fadeOutPause(1500);

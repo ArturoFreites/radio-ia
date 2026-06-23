@@ -8,6 +8,7 @@ const bodySchema = z.object({
   tipo: z.enum(["HORA", "CLIMA", "PUBLICIDAD"]),
   voiceId: z.string().min(1),
   publicidadId: z.string().min(1).optional(),
+  horaObjetivoMs: z.number().int().positive().optional(),
 });
 
 export async function POST(request: Request): Promise<Response> {
@@ -37,6 +38,7 @@ export async function POST(request: Request): Promise<Response> {
     tipo: parsed.data.tipo,
     voiceId: parsed.data.voiceId,
     publicidadId: parsed.data.publicidadId,
+    horaObjetivoMs: parsed.data.horaObjetivoMs,
   });
 
   if (!resultado.ok) {

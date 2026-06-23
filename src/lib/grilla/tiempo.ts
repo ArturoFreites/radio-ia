@@ -131,3 +131,8 @@ export function isoHoraInicioArgentina(diaRef: Date, horaInicio: string): string
   const pad = (n: number): string => String(n).padStart(2, "0");
   return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(hour)}:${pad(minute)}:00-03:00`;
 }
+
+/** Epoch ms del inicio del slot hoy en Argentina. */
+export function msInicioSlotArgentina(diaRef: Date, horaInicio: string): number {
+  return new Date(isoHoraInicioArgentina(diaRef, horaInicio)).getTime();
+}

@@ -1,11 +1,11 @@
+import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { validarVozRadioDj } from "@/lib/aire/djInterrupcionServicio";
 import { resolverRadioPorAireToken } from "@/lib/aire/validarToken";
 import { synthesizeElevenLabsBuffer } from "@/lib/gemini/tts";
+import { contentTypeDesdeRutaAudio, resolverRutaAudioAlmacenado } from "@/lib/publicidad/audioPath";
 import { prisma } from "@/lib/prisma";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 const textoSchema = z.object({
   aireToken: z.string().min(1),
@@ -51,14 +51,15 @@ export async function POST(request: Request): Promise<Response> {
       return NextResponse.json({ error: "Publicidad no encontrada" }, { status: 404 });
     }
     if (publicidad.audioUrl) {
-      const filePath = path.isAbsolute(publicidad.audioUrl)
-        ? publicidad.audioUrl
-        : path.join(process.cwd(), publicidad.audioUrl.replace(/^\//, ""));
+      const filePath = await resolverRutaAudioAlmacenado(publicidad.audioUrl);
+      if (!filePath) {
+        return NextResponse.json({ error: "Audio no disponible" }, { status: 404 });
+      }
       try {
         const buffer = await readFile(filePath);
         return new Response(buffer, {
           headers: {
-            "Content-Type": "audio/mpeg",
+            "Content-Type": contentTypeDesdeRutaAudio(filePath),
             "Cache-Control": "no-store",
           },
         });

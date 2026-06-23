@@ -33,23 +33,54 @@ function timersActivos(config: DjInterrupcionesConfig): InterrupcionTimer[] {
 
 export type UltimaEjecucionMap = Partial<Record<TipoInterrupcionDj, number>>;
 
+export type ProximaInterrupcionDj = {
+  tipo: TipoInterrupcionDj;
+  enMs: number;
+  /** Solo HORA: instante exacto en que debe sonar la locución. */
+  horaObjetivoMs?: number;
+};
+
+export function calcularProximaHoraAnclada(
+  anclaInicioMs: number,
+  intervaloMin: number,
+  ahoraMs: number,
+): { enMs: number; horaObjetivoMs: number } {
+  const intervaloMs = intervaloMin * 60_000;
+  let n = 1;
+  while (anclaInicioMs + n * intervaloMs <= ahoraMs) {
+    n += 1;
+  }
+  const horaObjetivoMs = anclaInicioMs + n * intervaloMs;
+  return { enMs: Math.max(0, horaObjetivoMs - ahoraMs), horaObjetivoMs };
+}
+
 export function calcularProximaInterrupcion(
   config: DjInterrupcionesConfig,
   ultimas: UltimaEjecucionMap,
   ahoraMs: number,
-): { tipo: TipoInterrupcionDj; enMs: number } | null {
+  anclaInicioMs?: number | null,
+): ProximaInterrupcionDj | null {
   const activos = timersActivos(config);
   if (activos.length === 0) return null;
 
-  let mejor: { tipo: TipoInterrupcionDj; enMs: number } | null = null;
+  let mejor: ProximaInterrupcionDj | null = null;
 
   for (const { tipo, intervaloMin } of activos) {
-    const intervaloMs = intervaloMin * 60_000;
-    const ultima = ultimas[tipo] ?? ahoraMs;
-    const proxima = ultima + intervaloMs;
-    const enMs = Math.max(0, proxima - ahoraMs);
-    if (!mejor || enMs < mejor.enMs) {
-      mejor = { tipo, enMs };
+    let candidato: ProximaInterrupcionDj;
+
+    if (tipo === "HORA" && anclaInicioMs != null) {
+      const { enMs, horaObjetivoMs } = calcularProximaHoraAnclada(anclaInicioMs, intervaloMin, ahoraMs);
+      candidato = { tipo, enMs, horaObjetivoMs };
+    } else {
+      const intervaloMs = intervaloMin * 60_000;
+      const ultima = ultimas[tipo] ?? ahoraMs;
+      const proxima = ultima + intervaloMs;
+      const enMs = Math.max(0, proxima - ahoraMs);
+      candidato = { tipo, enMs };
+    }
+
+    if (!mejor || candidato.enMs < mejor.enMs) {
+      mejor = candidato;
     }
   }
 
@@ -104,18 +135,31 @@ export function parseClimaJson(raw: string): {
   }
 }
 
-/** Cuánto esperar antes de la ejecución para regenerar la hora con precisión. */
-export const DJ_INTERRUPCION_HORA_PREP_ANTES_MS = 45_000;
+/** Fracción del intervalo de hora usada para preparar el audio con antelación (50 %). */
+export const DJ_INTERRUPCION_HORA_PREP_FRACCION = 0.5;
 
-export function claveCacheInterrupcion(tipo: TipoInterrupcionDj, publicidadId?: string): string {
+export function msAntesPrepararHora(intervaloMin: number): number {
+  return Math.round(intervaloMin * 60_000 * DJ_INTERRUPCION_HORA_PREP_FRACCION);
+}
+
+export function claveCacheInterrupcion(
+  tipo: TipoInterrupcionDj,
+  publicidadId?: string,
+  horaObjetivoMs?: number,
+): string {
+  if (tipo === "HORA" && horaObjetivoMs != null) return `${tipo}:${horaObjetivoMs}`;
   if (tipo === "PUBLICIDAD" && publicidadId) return `${tipo}:${publicidadId}`;
   return tipo;
 }
 
-export function msHastaPrepararInterrupcion(tipo: TipoInterrupcionDj, enMs: number): number {
+export function msHastaPrepararInterrupcion(
+  tipo: TipoInterrupcionDj,
+  enMs: number,
+  intervaloMin?: number | null,
+): number {
   if (enMs <= 5_000) return 0;
-  if (tipo === "HORA") {
-    return Math.max(0, enMs - DJ_INTERRUPCION_HORA_PREP_ANTES_MS);
+  if (tipo === "HORA" && intervaloMin != null) {
+    return Math.max(0, enMs - msAntesPrepararHora(intervaloMin));
   }
   return 0;
 }
