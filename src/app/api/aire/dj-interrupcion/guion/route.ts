@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generarGuionInterrupcionDj } from "@/lib/aire/djInterrupcionServicio";
 import { resolverRadioPorAireToken } from "@/lib/aire/validarToken";
+import { DJ_TEXTO_MAX_CHARS } from "@/lib/grilla/djConfigSchema";
 import type { DjInterrupcionGuionResponse } from "@/types/grilla";
 
 const bodySchema = z.object({
   aireToken: z.string().min(1),
-  tipo: z.enum(["HORA", "CLIMA", "PUBLICIDAD"]),
+  tipo: z.enum(["HORA", "CLIMA", "PUBLICIDAD", "TEXTO"]),
   publicidadId: z.string().min(1).optional(),
+  texto: z.string().min(1).max(DJ_TEXTO_MAX_CHARS).optional(),
 });
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -28,7 +30,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
-  if (!process.env.GEMINI_API_KEY && parsed.data.tipo !== "PUBLICIDAD") {
+  if (
+    !process.env.GEMINI_API_KEY &&
+    parsed.data.tipo !== "PUBLICIDAD" &&
+    parsed.data.tipo !== "TEXTO"
+  ) {
     return NextResponse.json({ error: "GEMINI_API_KEY no configurada" }, { status: 503 });
   }
 
@@ -36,8 +42,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "publicidadId requerido para PUBLICIDAD" }, { status: 400 });
   }
 
+  if (parsed.data.tipo === "TEXTO" && !parsed.data.texto?.trim()) {
+    return NextResponse.json({ error: "texto requerido para TEXTO" }, { status: 400 });
+  }
+
   try {
-    const guion = await generarGuionInterrupcionDj(radio, parsed.data.tipo, parsed.data.publicidadId);
+    const guion = await generarGuionInterrupcionDj(
+      radio,
+      parsed.data.tipo,
+      parsed.data.publicidadId,
+      undefined,
+      parsed.data.texto,
+    );
     if (!guion) {
       return NextResponse.json({ error: "No se pudo obtener el guión" }, { status: 502 });
     }

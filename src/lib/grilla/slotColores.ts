@@ -11,11 +11,16 @@ type SlotColorInput = Pick<
   | "djClimaActivo"
   | "djPublicidadActiva"
   | "djAudioActiva"
+  | "djTextoActiva"
 >;
 
 export function variantColorSlot(slot: SlotColorInput): SlotColorVariant {
   const interrupcionesActivas =
-    slot.djHoraActiva || slot.djClimaActivo || slot.djPublicidadActiva || slot.djAudioActiva;
+    slot.djHoraActiva ||
+    slot.djClimaActivo ||
+    slot.djPublicidadActiva ||
+    slot.djAudioActiva ||
+    slot.djTextoActiva;
   if (interrupcionesActivas && !slot.playlistNombre) return "interrupciones";
   if (slot.voz1 && slot.presentacionCadaTemas > 0) return "presentacion";
   if (slot.playlistNombre) return "dj";

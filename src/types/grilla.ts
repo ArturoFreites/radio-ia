@@ -2,7 +2,7 @@ import type { DjInterrupcionesConfig } from "@/lib/grilla/djConfigSchema";
 
 export type ModoAire = "DJ" | "IDLE";
 
-export type TipoInterrupcionDj = "HORA" | "CLIMA" | "PUBLICIDAD" | "AUDIO";
+export type TipoInterrupcionDj = "HORA" | "CLIMA" | "PUBLICIDAD" | "AUDIO" | "TEXTO";
 
 export type DjInterrupcionAudiosResponse = {
   archivos: Array<{ id: string; nombre: string; duracionSec: number | null }>;

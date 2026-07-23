@@ -1,6 +1,6 @@
 "use client";
 
-import { Cloud, Clock, Globe, Megaphone, Pause, Power, Scissors, Signal, Volume2, Waves } from "lucide-react";
+import { Cloud, Clock, Globe, Megaphone, MessageSquareText, Pause, Power, Scissors, Signal, Volume2, Waves } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { calcularProximaInterrupcion } from "@/lib/aire/djInterrupciones";
 import type { DjInterrupcionesConfig } from "@/lib/grilla/djConfigSchema";
@@ -30,6 +30,7 @@ function iconoInterrupcion(tipo: TipoInterrupcionDj): React.ReactElement {
   if (tipo === "HORA") return <Clock className="h-4 w-4" aria-hidden />;
   if (tipo === "CLIMA") return <Cloud className="h-4 w-4" aria-hidden />;
   if (tipo === "AUDIO") return <Volume2 className="h-4 w-4" aria-hidden />;
+  if (tipo === "TEXTO") return <MessageSquareText className="h-4 w-4" aria-hidden />;
   return <Megaphone className="h-4 w-4" aria-hidden />;
 }
 
@@ -37,6 +38,7 @@ function labelInterrupcion(tipo: TipoInterrupcionDj): string {
   if (tipo === "HORA") return "Hora exacta";
   if (tipo === "CLIMA") return "Clima";
   if (tipo === "AUDIO") return "Audio";
+  if (tipo === "TEXTO") return "Mensaje";
   return "Publicidad";
 }
 
@@ -99,7 +101,11 @@ export function AireRightPanel({
 
   const interrupcionesActivas =
     djConfig &&
-    (djConfig.djHoraActiva || djConfig.djClimaActivo || djConfig.djPublicidadActiva || djConfig.djAudioActiva);
+    (djConfig.djHoraActiva ||
+      djConfig.djClimaActivo ||
+      djConfig.djPublicidadActiva ||
+      djConfig.djAudioActiva ||
+      djConfig.djTextoActiva);
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
@@ -169,6 +175,9 @@ export function AireRightPanel({
             ) : null}
             {djConfig?.djAudioActiva && djConfig.djAudioIntervaloMin !== null ? (
               <li>Audios — cada {djConfig.djAudioIntervaloMin} min</li>
+            ) : null}
+            {djConfig?.djTextoActiva && djConfig.djTextoIntervaloMin !== null ? (
+              <li>Mensaje — cada {djConfig.djTextoIntervaloMin} min</li>
             ) : null}
           </ul>
         </section>

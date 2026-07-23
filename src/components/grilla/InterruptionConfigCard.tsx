@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, CloudSun, Megaphone, Music2, Radio } from "lucide-react";
+import { Clock, CloudSun, Megaphone, MessageSquareText, Music2, Radio } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -8,10 +8,11 @@ import {
   clampDjIntervaloMin,
   DJ_INTERRUPCION_INTERVALO_MAX,
   DJ_INTERRUPCION_INTERVALO_MIN,
+  DJ_TEXTO_MAX_CHARS,
 } from "@/lib/grilla/djConfigSchema";
 import { cn } from "@/lib/utils";
 
-export type InterruptionTipo = "hora" | "clima" | "publicidad" | "presentacion" | "audio";
+export type InterruptionTipo = "hora" | "clima" | "publicidad" | "presentacion" | "audio" | "texto";
 
 export type InterruptionCarpetaOption = { id: string; nombre: string; archivosCount: number };
 
@@ -21,6 +22,7 @@ const ICONOS: Record<InterruptionTipo, React.ReactElement> = {
   publicidad: <Megaphone className="h-5 w-5" aria-hidden />,
   presentacion: <Radio className="h-5 w-5" aria-hidden />,
   audio: <Music2 className="h-5 w-5" aria-hidden />,
+  texto: <MessageSquareText className="h-5 w-5" aria-hidden />,
 };
 
 const TITULOS: Record<InterruptionTipo, string> = {
@@ -29,6 +31,7 @@ const TITULOS: Record<InterruptionTipo, string> = {
   publicidad: "Publicidad",
   presentacion: "Presentación IA",
   audio: "Audios",
+  texto: "Mensaje",
 };
 
 const DESCRIPCIONES: Record<InterruptionTipo, string> = {
@@ -37,6 +40,7 @@ const DESCRIPCIONES: Record<InterruptionTipo, string> = {
   publicidad: "Rota publicidades activas del catálogo.",
   presentacion: "Presenta cada N temas con la voz locutora elegida.",
   audio: "Inserta jingles, IDs o cortinas de una carpeta de la biblioteca.",
+  texto: "Lee en voz alta un texto fijo que vos escribís.",
 };
 
 export type InterruptionConfigCardProps = {
@@ -50,6 +54,8 @@ export type InterruptionConfigCardProps = {
   carpetasOptions?: InterruptionCarpetaOption[];
   carpetaId?: string | null;
   onCarpetaIdChange?: (id: string) => void;
+  textoContenido?: string;
+  onTextoContenidoChange?: (texto: string) => void;
   className?: string;
 };
 
@@ -64,6 +70,8 @@ export function InterruptionConfigCard({
   carpetasOptions = [],
   carpetaId = null,
   onCarpetaIdChange,
+  textoContenido = "",
+  onTextoContenidoChange,
   className,
 }: InterruptionConfigCardProps): React.ReactElement {
   return (
@@ -159,6 +167,25 @@ export function InterruptionConfigCard({
                 ))}
               </Select>
             )
+          ) : null}
+          {tipo === "texto" ? (
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-[color:var(--text)]" htmlFor="dj-texto-contenido">
+                Mensaje
+              </label>
+              <textarea
+                id="dj-texto-contenido"
+                rows={3}
+                maxLength={DJ_TEXTO_MAX_CHARS}
+                value={textoContenido}
+                onChange={(e) => onTextoContenidoChange?.(e.target.value.slice(0, DJ_TEXTO_MAX_CHARS))}
+                placeholder="Ej. Estás escuchando Radio Dejavu, la radio que te acompaña."
+                className="w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2 text-sm text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-[color:var(--primary)] focus:outline-none"
+              />
+              <p className="text-right text-xs text-[color:var(--muted)]">
+                {textoContenido.length}/{DJ_TEXTO_MAX_CHARS}
+              </p>
+            </div>
           ) : null}
           <Button variant="secondary" size="sm" disabled className="w-full sm:w-auto">
             Escuchar ejemplo

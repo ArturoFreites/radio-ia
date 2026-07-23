@@ -25,6 +25,9 @@ function interrupcionesActivas(config: DjInterrupcionesConfig): InterrupcionActi
   if (config.djAudioActiva && config.djAudioIntervaloMin !== null) {
     out.push({ tipo: "AUDIO", intervaloMin: config.djAudioIntervaloMin });
   }
+  if (config.djTextoActiva && config.djTextoIntervaloMin !== null) {
+    out.push({ tipo: "TEXTO", intervaloMin: config.djTextoIntervaloMin });
+  }
   return out;
 }
 
@@ -50,6 +53,7 @@ export function leyendaInterrupciones(config: DjInterrupcionesConfig): string | 
   if (config.djClimaActivo) parts.push("C");
   if (config.djPublicidadActiva) parts.push("P");
   if (config.djAudioActiva) parts.push("A");
+  if (config.djTextoActiva) parts.push("T");
   if (parts.length === 0) return null;
   return parts.join(" · ");
 }

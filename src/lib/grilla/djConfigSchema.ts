@@ -4,6 +4,7 @@ const intervaloMinZ = z.number().int().min(5).max(1440);
 
 export const DJ_INTERRUPCION_INTERVALO_MIN = 5;
 export const DJ_INTERRUPCION_INTERVALO_MAX = 1440;
+export const DJ_TEXTO_MAX_CHARS = 120;
 
 export function clampDjIntervaloMin(value: number): number {
   if (!Number.isFinite(value)) return DJ_INTERRUPCION_INTERVALO_MIN;
@@ -11,6 +12,10 @@ export function clampDjIntervaloMin(value: number): number {
     DJ_INTERRUPCION_INTERVALO_MAX,
     Math.max(DJ_INTERRUPCION_INTERVALO_MIN, Math.round(value)),
   );
+}
+
+export function sanitizarDjTextoContenido(raw: string): string {
+  return raw.trim().slice(0, DJ_TEXTO_MAX_CHARS);
 }
 
 export const djInterrupcionesFieldsZ = z
@@ -25,6 +30,9 @@ export const djInterrupcionesFieldsZ = z
     djAudioActiva: z.boolean().optional(),
     djAudioIntervaloMin: intervaloMinZ.nullable().optional(),
     djAudioCarpetaId: z.string().cuid().nullable().optional(),
+    djTextoActiva: z.boolean().optional(),
+    djTextoIntervaloMin: intervaloMinZ.nullable().optional(),
+    djTextoContenido: z.string().max(DJ_TEXTO_MAX_CHARS).nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.djHoraActiva && (data.djHoraIntervaloMin === null || data.djHoraIntervaloMin === undefined)) {
@@ -67,6 +75,23 @@ export const djInterrupcionesFieldsZ = z
         });
       }
     }
+    if (data.djTextoActiva) {
+      if (data.djTextoIntervaloMin === null || data.djTextoIntervaloMin === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "djTextoIntervaloMin requerido cuando djTextoActiva es true",
+          path: ["djTextoIntervaloMin"],
+        });
+      }
+      const texto = data.djTextoContenido?.trim() ?? "";
+      if (!texto) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "djTextoContenido requerido cuando djTextoActiva es true",
+          path: ["djTextoContenido"],
+        });
+      }
+    }
   });
 
 export type DjInterrupcionesFields = z.infer<typeof djInterrupcionesFieldsZ>;
@@ -82,6 +107,9 @@ export type DjInterrupcionesConfig = {
   djAudioActiva: boolean;
   djAudioIntervaloMin: number | null;
   djAudioCarpetaId: string | null;
+  djTextoActiva: boolean;
+  djTextoIntervaloMin: number | null;
+  djTextoContenido: string | null;
 };
 
 export function djConfigFromRow(row: {
@@ -95,6 +123,9 @@ export function djConfigFromRow(row: {
   djAudioActiva: boolean;
   djAudioIntervaloMin: number | null;
   djAudioCarpetaId: string | null;
+  djTextoActiva: boolean;
+  djTextoIntervaloMin: number | null;
+  djTextoContenido: string | null;
 }): DjInterrupcionesConfig {
   return {
     presentacionCadaTemas: row.presentacionCadaTemas,
@@ -107,6 +138,9 @@ export function djConfigFromRow(row: {
     djAudioActiva: row.djAudioActiva,
     djAudioIntervaloMin: row.djAudioIntervaloMin,
     djAudioCarpetaId: row.djAudioCarpetaId,
+    djTextoActiva: row.djTextoActiva,
+    djTextoIntervaloMin: row.djTextoIntervaloMin,
+    djTextoContenido: row.djTextoContenido,
   };
 }
 
@@ -123,5 +157,8 @@ export function djConfigSignature(config: DjInterrupcionesConfig): string {
     aa: config.djAudioActiva,
     ai: config.djAudioIntervaloMin,
     ac: config.djAudioCarpetaId,
+    ta: config.djTextoActiva,
+    ti: config.djTextoIntervaloMin,
+    tc: config.djTextoContenido,
   });
 }

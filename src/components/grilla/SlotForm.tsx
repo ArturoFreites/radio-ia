@@ -11,6 +11,7 @@ import {
   clampDjIntervaloMin,
   DJ_INTERRUPCION_INTERVALO_MAX,
   DJ_INTERRUPCION_INTERVALO_MIN,
+  DJ_TEXTO_MAX_CHARS,
 } from "@/lib/grilla/djConfigSchema";
 import { HoraInicioInput } from "@/components/grilla/HoraInicioInput";
 import { usarApiSlotsSemanal } from "@/lib/grilla/slotPersistencia";
@@ -80,6 +81,9 @@ function djConfigInicial(target: SlotFormTarget): {
   djAudioActiva: boolean;
   djAudioIntervaloMin: number;
   djAudioCarpetaId: string | null;
+  djTextoActiva: boolean;
+  djTextoIntervaloMin: number;
+  djTextoContenido: string;
 } {
   const defaults = {
     presentacionCadaTemas: 1,
@@ -91,7 +95,10 @@ function djConfigInicial(target: SlotFormTarget): {
     djPublicidadIntervaloMin: 30,
     djAudioActiva: false,
     djAudioIntervaloMin: 30,
-    djAudioCarpetaId: null,
+    djAudioCarpetaId: null as string | null,
+    djTextoActiva: false,
+    djTextoIntervaloMin: 30,
+    djTextoContenido: "",
   };
   if (target.kind === "editar-slot") {
     const s = target.slot;
@@ -106,6 +113,9 @@ function djConfigInicial(target: SlotFormTarget): {
       djAudioActiva: s.djAudioActiva,
       djAudioIntervaloMin: s.djAudioIntervaloMin ?? 30,
       djAudioCarpetaId: s.djAudioCarpetaId,
+      djTextoActiva: s.djTextoActiva,
+      djTextoIntervaloMin: s.djTextoIntervaloMin ?? 30,
+      djTextoContenido: s.djTextoContenido ?? "",
     };
   }
   if (target.kind === "editar-evento") {
@@ -121,6 +131,9 @@ function djConfigInicial(target: SlotFormTarget): {
       djAudioActiva: e.djAudioActiva,
       djAudioIntervaloMin: e.djAudioIntervaloMin ?? 30,
       djAudioCarpetaId: e.djAudioCarpetaId,
+      djTextoActiva: e.djTextoActiva,
+      djTextoIntervaloMin: e.djTextoIntervaloMin ?? 30,
+      djTextoContenido: e.djTextoContenido ?? "",
     };
   }
   return defaults;
@@ -141,6 +154,9 @@ type DjTipoCampoProps = {
   djAudioActiva: boolean;
   djAudioIntervaloMin: number;
   djAudioCarpetaId: string | null;
+  djTextoActiva: boolean;
+  djTextoIntervaloMin: number;
+  djTextoContenido: string;
   onPlaylistChange: (id: string, nombre: string) => void;
   onVoz1Change: (id: string) => void;
   onPresentacionCadaTemasChange: (n: number) => void;
@@ -153,6 +169,9 @@ type DjTipoCampoProps = {
   onDjAudioActivaChange: (v: boolean) => void;
   onDjAudioIntervaloMinChange: (n: number) => void;
   onDjAudioCarpetaIdChange: (id: string) => void;
+  onDjTextoActivaChange: (v: boolean) => void;
+  onDjTextoIntervaloMinChange: (n: number) => void;
+  onDjTextoContenidoChange: (texto: string) => void;
 };
 
 function DjTipoCampo({
@@ -168,6 +187,9 @@ function DjTipoCampo({
   djAudioActiva,
   djAudioIntervaloMin,
   djAudioCarpetaId,
+  djTextoActiva,
+  djTextoIntervaloMin,
+  djTextoContenido,
   onPlaylistChange,
   onVoz1Change,
   onPresentacionCadaTemasChange,
@@ -180,6 +202,9 @@ function DjTipoCampo({
   onDjAudioActivaChange,
   onDjAudioIntervaloMinChange,
   onDjAudioCarpetaIdChange,
+  onDjTextoActivaChange,
+  onDjTextoIntervaloMinChange,
+  onDjTextoContenidoChange,
 }: DjTipoCampoProps): React.ReactElement {
   const ready = useEnterTransition();
   const [sinSpotify, setSinSpotify] = useState(false);
@@ -457,6 +482,49 @@ function DjTipoCampo({
             </Select>
           )
         ) : null}
+        <label className="flex flex-col gap-1.5 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+          <span className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={djTextoActiva}
+              onChange={(ev) => onDjTextoActivaChange(ev.target.checked)}
+            />
+            <span>Mensaje de texto</span>
+          </span>
+          {djTextoActiva ? (
+            <span className="flex items-center gap-2 pl-6 sm:pl-0">
+              <Input
+                type="number"
+                min={DJ_INTERRUPCION_INTERVALO_MIN}
+                max={DJ_INTERRUPCION_INTERVALO_MAX}
+                className="w-full max-w-[7rem] sm:w-24"
+                value={djTextoIntervaloMin}
+                onChange={(ev) => onDjTextoIntervaloMinChange(clampDjIntervaloMin(Number(ev.target.value)))}
+                aria-label="Intervalo mensaje en minutos"
+              />
+              <span className="text-zinc-500">min</span>
+            </span>
+          ) : null}
+        </label>
+        {djTextoActiva ? (
+          <div className="space-y-1.5">
+            <label className="block text-sm text-zinc-300" htmlFor="slot-dj-texto">
+              Texto del mensaje
+            </label>
+            <textarea
+              id="slot-dj-texto"
+              rows={3}
+              maxLength={DJ_TEXTO_MAX_CHARS}
+              value={djTextoContenido}
+              onChange={(ev) => onDjTextoContenidoChange(ev.target.value.slice(0, DJ_TEXTO_MAX_CHARS))}
+              placeholder="Ej. Estás escuchando Radio Dejavu."
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-[color:var(--primary)] focus:outline-none"
+            />
+            <p className="text-right text-xs text-zinc-500">
+              {djTextoContenido.length}/{DJ_TEXTO_MAX_CHARS}
+            </p>
+          </div>
+        ) : null}
       </fieldset>
     </div>
   );
@@ -565,6 +633,9 @@ function buildDjPayload(
     djAudioActiva: dj.djAudioActiva,
     djAudioIntervaloMin: dj.djAudioActiva ? dj.djAudioIntervaloMin : null,
     djAudioCarpetaId: dj.djAudioActiva ? dj.djAudioCarpetaId : null,
+    djTextoActiva: dj.djTextoActiva,
+    djTextoIntervaloMin: dj.djTextoActiva ? dj.djTextoIntervaloMin : null,
+    djTextoContenido: dj.djTextoActiva ? dj.djTextoContenido.trim() || null : null,
   };
 }
 
@@ -591,6 +662,9 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
   const [djAudioActiva, setDjAudioActiva] = useState(djIni.djAudioActiva);
   const [djAudioIntervaloMin, setDjAudioIntervaloMin] = useState(djIni.djAudioIntervaloMin);
   const [djAudioCarpetaId, setDjAudioCarpetaId] = useState(djIni.djAudioCarpetaId);
+  const [djTextoActiva, setDjTextoActiva] = useState(djIni.djTextoActiva);
+  const [djTextoIntervaloMin, setDjTextoIntervaloMin] = useState(djIni.djTextoIntervaloMin);
+  const [djTextoContenido, setDjTextoContenido] = useState(djIni.djTextoContenido);
   const [enviando, setEnviando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -608,6 +682,9 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
     djAudioActiva,
     djAudioIntervaloMin,
     djAudioCarpetaId,
+    djTextoActiva,
+    djTextoIntervaloMin,
+    djTextoContenido,
   };
 
   async function eliminar(): Promise<void> {
@@ -642,6 +719,10 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
       }
       if (djAudioActiva && !djAudioCarpetaId) {
         setError("Elegí una carpeta de audios para activar la interrupción de Audios");
+        return;
+      }
+      if (djTextoActiva && !djTextoContenido.trim()) {
+        setError("Escribí el mensaje de texto para activar la interrupción");
         return;
       }
       const djPayload = buildDjPayload(playlistId, playlistNombre, voz1Id, djState);
@@ -768,6 +849,9 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
         djAudioActiva={djAudioActiva}
         djAudioIntervaloMin={djAudioIntervaloMin}
         djAudioCarpetaId={djAudioCarpetaId}
+        djTextoActiva={djTextoActiva}
+        djTextoIntervaloMin={djTextoIntervaloMin}
+        djTextoContenido={djTextoContenido}
         onPlaylistChange={(id, nombre) => {
           setPlaylistId(id);
           setPlaylistNombre(nombre);
@@ -783,6 +867,9 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
         onDjAudioActivaChange={setDjAudioActiva}
         onDjAudioIntervaloMinChange={setDjAudioIntervaloMin}
         onDjAudioCarpetaIdChange={setDjAudioCarpetaId}
+        onDjTextoActivaChange={setDjTextoActiva}
+        onDjTextoIntervaloMinChange={setDjTextoIntervaloMin}
+        onDjTextoContenidoChange={setDjTextoContenido}
       />
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
       <div className="flex flex-wrap gap-2 pt-1">

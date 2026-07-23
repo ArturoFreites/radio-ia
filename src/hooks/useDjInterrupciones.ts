@@ -46,6 +46,8 @@ function sincronizarUltimasDesdeConfig(
   else delete ultimas.PUBLICIDAD;
   if (config.djAudioActiva) ultimas.AUDIO = now;
   else delete ultimas.AUDIO;
+  if (config.djTextoActiva) ultimas.TEXTO = now;
+  else delete ultimas.TEXTO;
 }
 
 function resolverPublicidad(
@@ -153,12 +155,14 @@ export function useDjInterrupciones({
       publicidadId?: string,
       subtitulo?: string,
       horaObjetivoMs?: number,
+      texto?: string,
     ): Promise<PreparedInterrupcion | null> => {
       const voz = voiceIdRef.current;
       if (!voz) return null;
       if (tipo === "PUBLICIDAD" && !publicidadId) return null;
+      if (tipo === "TEXTO" && !texto?.trim()) return null;
 
-      const cacheKey = claveCacheInterrupcion(tipo, publicidadId, horaObjetivoMs);
+      const cacheKey = claveCacheInterrupcion(tipo, publicidadId, horaObjetivoMs, undefined, texto);
       const cached = preparedRef.current.get(cacheKey);
       if (cached) return cached;
 
@@ -176,6 +180,7 @@ export function useDjInterrupciones({
               voiceId: voz,
               publicidadId,
               horaObjetivoMs,
+              texto: tipo === "TEXTO" ? texto : undefined,
             }),
           });
           const contentType = res.headers.get("content-type") ?? "";
@@ -249,6 +254,7 @@ export function useDjInterrupciones({
 
       let publicidadId: string | undefined;
       let subtitulo: string | undefined;
+      let texto: string | undefined;
 
       if (proxima.tipo === "PUBLICIDAD") {
         const item = resolverPublicidad(publicidadesRef.current, publicidadIndexRef.current);
@@ -257,7 +263,20 @@ export function useDjInterrupciones({
         subtitulo = item.subtitulo;
       }
 
-      void prepararInterrupcionTts(proxima.tipo, publicidadId, subtitulo, proxima.horaObjetivoMs);
+      if (proxima.tipo === "TEXTO") {
+        const contenido = configRef.current?.djTextoContenido?.trim();
+        if (!contenido) return;
+        texto = contenido;
+        subtitulo = contenido.length > 60 ? `${contenido.slice(0, 57)}…` : contenido;
+      }
+
+      void prepararInterrupcionTts(
+        proxima.tipo,
+        publicidadId,
+        subtitulo,
+        proxima.horaObjetivoMs,
+        texto,
+      );
     },
     [prepararAudioBiblioteca, prepararInterrupcionTts],
   );
@@ -286,20 +305,28 @@ export function useDjInterrupciones({
       publicidadId?: string,
       subtitulo?: string,
       horaObjetivoMs?: number,
+      texto?: string,
     ): Promise<PreparedInterrupcion | null> => {
-      const cacheKey = claveCacheInterrupcion(tipo, publicidadId, horaObjetivoMs);
+      const cacheKey = claveCacheInterrupcion(tipo, publicidadId, horaObjetivoMs, undefined, texto);
       const cached = preparedRef.current.get(cacheKey);
       if (cached) {
         preparedRef.current.delete(cacheKey);
         return cached;
       }
-      return prepararInterrupcionTts(tipo, publicidadId, subtitulo, horaObjetivoMs);
+      return prepararInterrupcionTts(tipo, publicidadId, subtitulo, horaObjetivoMs, texto);
     },
     [prepararInterrupcionTts],
   );
 
   const resolverPublicidadPreparada = useCallback(
     async (tipo: TipoInterrupcionDj, horaObjetivoMs?: number): Promise<PreparedInterrupcion | null> => {
+      if (tipo === "TEXTO") {
+        const contenido = configRef.current?.djTextoContenido?.trim();
+        if (!contenido) return null;
+        const subtitulo = contenido.length > 60 ? `${contenido.slice(0, 57)}…` : contenido;
+        return obtenerAudioPreparadoTts(tipo, undefined, subtitulo, undefined, contenido);
+      }
+
       if (tipo !== "PUBLICIDAD") {
         return obtenerAudioPreparadoTts(tipo, undefined, undefined, horaObjetivoMs);
       }
@@ -391,6 +418,7 @@ export function useDjInterrupciones({
       if (tipo !== "AUDIO" && !voiceIdRef.current) return;
       if (tipo === "PUBLICIDAD" && publicidadesRef.current.length === 0) return;
       if (tipo === "AUDIO" && audiosRef.current.length === 0) return;
+      if (tipo === "TEXTO" && !configRef.current?.djTextoContenido?.trim()) return;
 
       runningRef.current = true;
       let fadeOutHecho = false;
@@ -458,7 +486,8 @@ export function useDjInterrupciones({
     if (!enabled || !cfg) return;
 
     const tieneAudio = cfg.djAudioActiva && Boolean(cfg.djAudioCarpetaId);
-    const tieneTts = cfg.djHoraActiva || cfg.djClimaActivo || cfg.djPublicidadActiva;
+    const tieneTts =
+      cfg.djHoraActiva || cfg.djClimaActivo || cfg.djPublicidadActiva || cfg.djTextoActiva;
     if (!tieneAudio && !tieneTts) return;
     if (tieneTts && !voiceIdRef.current && !tieneAudio) return;
 

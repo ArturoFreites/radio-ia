@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Clock, Cloud, Megaphone, Music2, Plus } from "lucide-react";
+import { Clock, Cloud, Megaphone, MessageSquareText, Music2, Plus } from "lucide-react";
 import type { DjInterrupcionesConfig } from "@/lib/grilla/djConfigSchema";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +76,23 @@ function buildCards(
       icon: <Music2 className="h-5 w-5" aria-hidden />,
       titulo: "Audios",
       detalle: `Cada ${djConfig.djAudioIntervaloMin} min`,
+      tag: "Programada",
+      tagVariant: "programada",
+    });
+  }
+
+  if (djConfig?.djTextoActiva && djConfig.djTextoIntervaloMin !== null) {
+    const preview = djConfig.djTextoContenido?.trim() ?? "";
+    cards.push({
+      id: "texto",
+      icon: <MessageSquareText className="h-5 w-5" aria-hidden />,
+      titulo: "Mensaje",
+      detalle: preview
+        ? preview.length > 40
+          ? `${preview.slice(0, 37)}…`
+          : preview
+        : `Cada ${djConfig.djTextoIntervaloMin} min`,
+      countdown: `Cada ${djConfig.djTextoIntervaloMin} min`,
       tag: "Programada",
       tagVariant: "programada",
     });

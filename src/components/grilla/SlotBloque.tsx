@@ -32,6 +32,7 @@ const COLOR_INTERRUPCION: Record<TipoInterrupcionDj, string> = {
   CLIMA: "bg-cyan-400",
   PUBLICIDAD: "bg-rose-400",
   AUDIO: "bg-amber-400",
+  TEXTO: "bg-violet-400",
 };
 
 function horaFinEtiqueta(inicioMin: number, duracionMin: number): string {

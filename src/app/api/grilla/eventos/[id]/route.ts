@@ -92,6 +92,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.djAudioCarpetaId = carpetaValidada.carpetaId;
   }
 
+  if (
+    raw.djTextoActiva !== undefined ||
+    raw.djTextoContenido !== undefined ||
+    raw.djTextoIntervaloMin !== undefined
+  ) {
+    const textoActiva = raw.djTextoActiva ?? evento.djTextoActiva;
+    const intervalo =
+      raw.djTextoIntervaloMin !== undefined ? raw.djTextoIntervaloMin : evento.djTextoIntervaloMin;
+    const contenidoRaw =
+      raw.djTextoContenido !== undefined ? raw.djTextoContenido : evento.djTextoContenido;
+    const contenido = textoActiva ? (contenidoRaw?.trim() ?? null) : null;
+
+    patch.djTextoActiva = textoActiva;
+    patch.djTextoIntervaloMin = textoActiva ? (intervalo ?? null) : null;
+    patch.djTextoContenido = contenido;
+  }
+
   if (raw.playlistId !== undefined || raw.playlistNombre !== undefined) {
     const merged = normalizarPlaylistSlot(
       raw.playlistId !== undefined ? raw.playlistId : evento.playlistId,

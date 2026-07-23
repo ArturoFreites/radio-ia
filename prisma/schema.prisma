@@ -154,6 +154,9 @@ model SlotGrilla {
   djAudioActiva            Boolean   @default(false)
   djAudioIntervaloMin      Int?
   djAudioCarpetaId         String?
+  djTextoActiva            Boolean   @default(false)
+  djTextoIntervaloMin      Int?
+  djTextoContenido         String?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 }
@@ -182,6 +185,9 @@ model EventoGrilla {
   djAudioActiva            Boolean   @default(false)
   djAudioIntervaloMin      Int?
   djAudioCarpetaId         String?
+  djTextoActiva            Boolean   @default(false)
+  djTextoIntervaloMin      Int?
+  djTextoContenido         String?
   createdAt                DateTime  @default(now())
 }
 

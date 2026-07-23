@@ -56,6 +56,9 @@ function filaDjDesdeRegistro(
     djAudioActiva: boolean;
     djAudioIntervaloMin: number | null;
     djAudioCarpetaId: string | null;
+    djTextoActiva: boolean;
+    djTextoIntervaloMin: number | null;
+    djTextoContenido: string | null;
   },
 ): FilaGrillaDj {
   return {
@@ -90,6 +93,9 @@ function toSlotHoy(
     djAudioActiva: dj.djAudioActiva,
     djAudioIntervaloMin: dj.djAudioIntervaloMin,
     djAudioCarpetaId: dj.djAudioCarpetaId,
+    djTextoActiva: dj.djTextoActiva,
+    djTextoIntervaloMin: dj.djTextoIntervaloMin,
+    djTextoContenido: dj.djTextoContenido,
   };
   if (dj.playlistId) {
     out.playlistId = dj.playlistId;

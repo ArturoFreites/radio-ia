@@ -62,6 +62,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     djAudioActiva,
     djAudioIntervaloMin,
     djAudioCarpetaId,
+    djTextoActiva,
+    djTextoIntervaloMin,
+    djTextoContenido,
   } = parsed.data;
 
   const playlist = normalizarPlaylistSlot(playlistId, playlistNombre);
@@ -76,6 +79,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!carpetaValidada.ok) {
     return NextResponse.json({ error: carpetaValidada.error }, { status: 400 });
   }
+
+  const textoActiva = djTextoActiva ?? false;
+  const textoContenido = textoActiva ? (djTextoContenido?.trim() ?? null) : null;
 
   const slot = await prisma.slotGrilla.create({
     data: {
@@ -98,6 +104,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       djAudioActiva: audioActiva,
       djAudioIntervaloMin: audioActiva ? (djAudioIntervaloMin ?? null) : null,
       djAudioCarpetaId: carpetaValidada.carpetaId,
+      djTextoActiva: textoActiva,
+      djTextoIntervaloMin: textoActiva ? (djTextoIntervaloMin ?? null) : null,
+      djTextoContenido: textoContenido,
     },
     include: grillaVozInclude,
   });

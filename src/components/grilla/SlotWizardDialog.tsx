@@ -68,6 +68,9 @@ function djConfigInicial(target: SlotFormTarget): {
   djAudioActiva: boolean;
   djAudioIntervaloMin: number;
   djAudioCarpetaId: string | null;
+  djTextoActiva: boolean;
+  djTextoIntervaloMin: number;
+  djTextoContenido: string;
 } {
   const defaults = {
     presentacionCadaTemas: 2,
@@ -79,7 +82,10 @@ function djConfigInicial(target: SlotFormTarget): {
     djPublicidadIntervaloMin: 30,
     djAudioActiva: false,
     djAudioIntervaloMin: 45,
-    djAudioCarpetaId: null,
+    djAudioCarpetaId: null as string | null,
+    djTextoActiva: false,
+    djTextoIntervaloMin: 60,
+    djTextoContenido: "",
   };
   const row: GrillaEditorSlotRow | GrillaEditorEventoRow | null =
     target.kind === "editar-slot"
@@ -99,6 +105,9 @@ function djConfigInicial(target: SlotFormTarget): {
     djAudioActiva: row.djAudioActiva,
     djAudioIntervaloMin: row.djAudioIntervaloMin ?? 45,
     djAudioCarpetaId: row.djAudioCarpetaId,
+    djTextoActiva: row.djTextoActiva,
+    djTextoIntervaloMin: row.djTextoIntervaloMin ?? 60,
+    djTextoContenido: row.djTextoContenido ?? "",
   };
 }
 
@@ -197,6 +206,9 @@ export function SlotWizardDialog({
   const [djAudioActiva, setDjAudioActiva] = useState(false);
   const [djAudioIntervaloMin, setDjAudioIntervaloMin] = useState(45);
   const [djAudioCarpetaId, setDjAudioCarpetaId] = useState<string | null>(null);
+  const [djTextoActiva, setDjTextoActiva] = useState(false);
+  const [djTextoIntervaloMin, setDjTextoIntervaloMin] = useState(60);
+  const [djTextoContenido, setDjTextoContenido] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -233,6 +245,9 @@ export function SlotWizardDialog({
     setDjAudioActiva(dj.djAudioActiva);
     setDjAudioIntervaloMin(dj.djAudioIntervaloMin);
     setDjAudioCarpetaId(dj.djAudioCarpetaId);
+    setDjTextoActiva(dj.djTextoActiva);
+    setDjTextoIntervaloMin(dj.djTextoIntervaloMin);
+    setDjTextoContenido(dj.djTextoContenido);
     setError(null);
   }, [open, target]);
 
@@ -365,9 +380,16 @@ export function SlotWizardDialog({
         djAudioActiva,
         djAudioIntervaloMin: djAudioActiva ? djAudioIntervaloMin : null,
         djAudioCarpetaId: djAudioActiva ? djAudioCarpetaId : null,
+        djTextoActiva,
+        djTextoIntervaloMin: djTextoActiva ? djTextoIntervaloMin : null,
+        djTextoContenido: djTextoActiva ? djTextoContenido.trim() || null : null,
       };
       if (djAudioActiva && !djAudioCarpetaId) {
         setError("Elegí una carpeta de audios para activar la interrupción de Audios");
+        return;
+      }
+      if (djTextoActiva && !djTextoContenido.trim()) {
+        setError("Escribí el mensaje de texto para activar la interrupción");
         return;
       }
       const horaNorm = normalizarHoraHHMM(horaInicio);
@@ -618,6 +640,15 @@ export function SlotWizardDialog({
                     carpetasOptions={carpetasOptions}
                     carpetaId={djAudioCarpetaId}
                     onCarpetaIdChange={setDjAudioCarpetaId}
+                  />
+                  <InterruptionConfigCard
+                    tipo="texto"
+                    activo={djTextoActiva}
+                    onActivoChange={setDjTextoActiva}
+                    intervaloMin={djTextoIntervaloMin}
+                    onIntervaloChange={setDjTextoIntervaloMin}
+                    textoContenido={djTextoContenido}
+                    onTextoContenidoChange={setDjTextoContenido}
                   />
                   <InterruptionConfigCard
                     tipo="presentacion"

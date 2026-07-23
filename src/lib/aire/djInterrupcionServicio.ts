@@ -4,6 +4,7 @@ import type { RadioPorAireToken } from "@/lib/aire/validarToken";
 import { fetchClima } from "@/lib/entretenimiento/clima";
 import { generarTextoGemini } from "@/lib/gemini/guiones";
 import { synthesizeElevenLabsBuffer } from "@/lib/gemini/tts";
+import { sanitizarDjTextoContenido } from "@/lib/grilla/djConfigSchema";
 import {
   contentTypeDesdeRutaAudio,
   resolverRutaAudioAlmacenado,
@@ -46,8 +47,14 @@ export async function generarGuionInterrupcionDj(
   tipo: TipoInterrupcionDj,
   publicidadId?: string,
   horaObjetivoMs?: number,
+  textoFijo?: string,
 ): Promise<string | null> {
   const estilo = radio.estiloLocucion ?? "cálido y cercano";
+
+  if (tipo === "TEXTO") {
+    const texto = sanitizarDjTextoContenido(textoFijo ?? "");
+    return texto || null;
+  }
 
   if (tipo === "HORA") {
     const hora = formatHoraArgentina(new Date(horaObjetivoMs ?? Date.now()));
@@ -73,6 +80,8 @@ export async function generarGuionInterrupcionDj(
     ).trim();
     return guion || null;
   }
+
+  if (tipo === "AUDIO") return null;
 
   if (!publicidadId) return null;
 
@@ -125,13 +134,40 @@ export async function generarAudioInterrupcionDj(params: {
   voiceId: string;
   publicidadId?: string;
   horaObjetivoMs?: number;
+  texto?: string;
 }): Promise<ResultadoAudioInterrupcionDj> {
-  const { radio, tipo, voiceId, publicidadId, horaObjetivoMs } = params;
+  const { radio, tipo, voiceId, publicidadId, horaObjetivoMs, texto } = params;
 
   if (tipo === "PUBLICIDAD" && publicidadId) {
     const pregrabado = await leerAudioPublicidad(radio.id, publicidadId);
     if (pregrabado) {
       return { ok: true, buffer: pregrabado.buffer, contentType: pregrabado.contentType };
+    }
+  }
+
+  if (tipo === "TEXTO") {
+    if (!process.env.ELEVENLABS_API_KEY) {
+      return { ok: false, status: 503, error: "ELEVENLABS_API_KEY no configurada" };
+    }
+
+    const vozOk = await validarVozRadioDj(radio.id, voiceId);
+    if (!vozOk) {
+      return { ok: false, status: 400, error: "Voz no disponible para esta radio" };
+    }
+
+    const guion = await generarGuionInterrupcionDj(radio, "TEXTO", undefined, undefined, texto);
+    if (!guion) {
+      return { ok: false, status: 400, error: "Texto vacío o inválido" };
+    }
+
+    try {
+      const { buffer } = await synthesizeElevenLabsBuffer({
+        texto: guion,
+        vozId: voiceId,
+      });
+      return { ok: true, buffer, contentType: "audio/mpeg" };
+    } catch {
+      return { ok: false, status: 502, error: "Error al generar el audio" };
     }
   }
 

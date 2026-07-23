@@ -60,6 +60,7 @@ function contarInterrupcionesSlotHoy(s: SlotHoy): number {
   if (s.djClimaActivo) n += 1;
   if (s.djPublicidadActiva) n += 1;
   if (s.djAudioActiva) n += 1;
+  if (s.djTextoActiva) n += 1;
   if (s.presentacionCadaTemas > 0 && s.voz1Nombre) n += 1;
   return n;
 }
