@@ -1,6 +1,6 @@
 "use client";
 
-import { Cloud, Clock, Megaphone } from "lucide-react";
+import { Cloud, Clock, Megaphone, Volume2 } from "lucide-react";
 import { SpotifyIcon } from "@/components/brand/SpotifyIcon";
 import { useEffect, useMemo, useState } from "react";
 import { calcularProximaInterrupcion } from "@/lib/aire/djInterrupciones";
@@ -18,12 +18,14 @@ function formatMinSec(ms: number): string {
 function iconoInterrupcion(tipo: TipoInterrupcionDj): React.ReactElement {
   if (tipo === "HORA") return <Clock className="h-4 w-4" aria-hidden />;
   if (tipo === "CLIMA") return <Cloud className="h-4 w-4" aria-hidden />;
+  if (tipo === "AUDIO") return <Volume2 className="h-4 w-4" aria-hidden />;
   return <Megaphone className="h-4 w-4" aria-hidden />;
 }
 
 function labelInterrupcion(tipo: TipoInterrupcionDj): string {
   if (tipo === "HORA") return "Hora exacta";
   if (tipo === "CLIMA") return "Clima";
+  if (tipo === "AUDIO") return "Audio";
   return "Publicidad";
 }
 

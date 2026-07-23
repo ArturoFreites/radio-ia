@@ -18,6 +18,6 @@ export type LimpiarResponse = {
   liberadoBytes: number;
 };
 
-export const STORAGE_CATEGORIA_NOMBRES = ["previews", "spotify", "programas", "otros"] as const;
+export const STORAGE_CATEGORIA_NOMBRES = ["previews", "spotify", "programas", "biblioteca", "otros"] as const;
 
 export type StorageCategoriaNombre = (typeof STORAGE_CATEGORIA_NOMBRES)[number];

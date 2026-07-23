@@ -34,6 +34,7 @@ function contarInterrupciones(slot: GrillaEditorSlotRow): number {
   if (slot.djHoraActiva) n += 1;
   if (slot.djClimaActivo) n += 1;
   if (slot.djPublicidadActiva) n += 1;
+  if (slot.djAudioActiva) n += 1;
   if (slot.presentacionCadaTemas > 0 && slot.voz1) n += 1;
   return n;
 }

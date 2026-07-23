@@ -86,7 +86,7 @@ export const ModoDJ = forwardRef<ModoDJHandle, ModoDJProps>(function ModoDJ(
     config: djConfig,
     voiceId,
     slotInicioMs,
-    enabled: Boolean(voiceId),
+    enabled: Boolean(voiceId) || Boolean(djConfig?.djAudioActiva && djConfig.djAudioCarpetaId),
     onBeforePlay: async (): Promise<void> => {
       await spotifyRef.current?.fadeOutPause(1500);
     },

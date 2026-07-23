@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Cloud, Megaphone, Plus } from "lucide-react";
+import { Clock, Cloud, Megaphone, Music2, Plus } from "lucide-react";
 import type { DjInterrupcionesConfig } from "@/lib/grilla/djConfigSchema";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +45,17 @@ function cardsDesdeConfig(config: DjInterrupcionesConfig | null, radioCiudad?: s
       icon: <Megaphone className="h-5 w-5" aria-hidden />,
       titulo: "Publicidad",
       detalle: `Cada ${config.djPublicidadIntervaloMin} min`,
+      tag: "Programada",
+      tagVariant: "programada",
+    });
+  }
+
+  if (config.djAudioActiva && config.djAudioIntervaloMin !== null) {
+    cards.push({
+      id: "audio",
+      icon: <Music2 className="h-5 w-5" aria-hidden />,
+      titulo: "Audios",
+      detalle: `Cada ${config.djAudioIntervaloMin} min`,
       tag: "Programada",
       tagVariant: "programada",
     });

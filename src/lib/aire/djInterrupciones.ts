@@ -28,6 +28,9 @@ function timersActivos(config: DjInterrupcionesConfig): InterrupcionTimer[] {
   if (config.djPublicidadActiva && config.djPublicidadIntervaloMin !== null) {
     out.push({ tipo: "PUBLICIDAD", intervaloMin: config.djPublicidadIntervaloMin });
   }
+  if (config.djAudioActiva && config.djAudioIntervaloMin !== null) {
+    out.push({ tipo: "AUDIO", intervaloMin: config.djAudioIntervaloMin });
+  }
   return out;
 }
 
@@ -146,9 +149,11 @@ export function claveCacheInterrupcion(
   tipo: TipoInterrupcionDj,
   publicidadId?: string,
   horaObjetivoMs?: number,
+  audioId?: string,
 ): string {
   if (tipo === "HORA" && horaObjetivoMs != null) return `${tipo}:${horaObjetivoMs}`;
   if (tipo === "PUBLICIDAD" && publicidadId) return `${tipo}:${publicidadId}`;
+  if (tipo === "AUDIO" && audioId) return `${tipo}:${audioId}`;
   return tipo;
 }
 

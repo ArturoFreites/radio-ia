@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { validarCarpetaAudioParaSlot } from "@/lib/audios/validarCarpetaSlot";
 import { prisma } from "@/lib/prisma";
 import { djInterrupcionesFieldsZ } from "@/lib/grilla/djConfigSchema";
 import { horaInicioGrillaZ } from "@/lib/grilla/horaSchema";
@@ -72,6 +73,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       : null;
   } else if (raw.djPublicidadIntervaloMin !== undefined) {
     patch.djPublicidadIntervaloMin = raw.djPublicidadIntervaloMin;
+  }
+
+  if (raw.djAudioActiva !== undefined || raw.djAudioCarpetaId !== undefined || raw.djAudioIntervaloMin !== undefined) {
+    const audioActiva = raw.djAudioActiva ?? evento.djAudioActiva;
+    const carpetaId =
+      raw.djAudioCarpetaId !== undefined ? raw.djAudioCarpetaId : evento.djAudioCarpetaId;
+    const intervalo =
+      raw.djAudioIntervaloMin !== undefined ? raw.djAudioIntervaloMin : evento.djAudioIntervaloMin;
+
+    const carpetaValidada = await validarCarpetaAudioParaSlot(radioId, carpetaId, audioActiva);
+    if (!carpetaValidada.ok) {
+      return NextResponse.json({ error: carpetaValidada.error }, { status: 400 });
+    }
+
+    patch.djAudioActiva = audioActiva;
+    patch.djAudioIntervaloMin = audioActiva ? (intervalo ?? null) : null;
+    patch.djAudioCarpetaId = carpetaValidada.carpetaId;
   }
 
   if (raw.playlistId !== undefined || raw.playlistNombre !== undefined) {

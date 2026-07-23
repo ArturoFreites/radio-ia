@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { validarCarpetaAudioParaSlot } from "@/lib/audios/validarCarpetaSlot";
 import { prisma } from "@/lib/prisma";
 import { djInterrupcionesFieldsZ } from "@/lib/grilla/djConfigSchema";
 import { horaInicioGrillaZ } from "@/lib/grilla/horaSchema";
@@ -59,6 +60,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     djClimaIntervaloMin,
     djPublicidadActiva,
     djPublicidadIntervaloMin,
+    djAudioActiva,
+    djAudioIntervaloMin,
+    djAudioCarpetaId,
   } = parsed.data;
 
   const [y, m, d] = fecha.split("-").map(Number);
@@ -71,6 +75,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const vocesValidadas = await validarVocesSlotParaRadio(radioId, voz1Id, voz2Id);
   if ("error" in vocesValidadas) {
     return NextResponse.json({ error: vocesValidadas.error }, { status: 400 });
+  }
+
+  const audioActiva = djAudioActiva ?? false;
+  const carpetaValidada = await validarCarpetaAudioParaSlot(radioId, djAudioCarpetaId, audioActiva);
+  if (!carpetaValidada.ok) {
+    return NextResponse.json({ error: carpetaValidada.error }, { status: 400 });
   }
 
   const evento = await prisma.eventoGrilla.create({
@@ -91,6 +101,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       djClimaIntervaloMin: djClimaActivo ? (djClimaIntervaloMin ?? null) : null,
       djPublicidadActiva: djPublicidadActiva ?? false,
       djPublicidadIntervaloMin: djPublicidadActiva ? (djPublicidadIntervaloMin ?? null) : null,
+      djAudioActiva: audioActiva,
+      djAudioIntervaloMin: audioActiva ? (djAudioIntervaloMin ?? null) : null,
+      djAudioCarpetaId: carpetaValidada.carpetaId,
     },
     include: grillaVozInclude,
   });

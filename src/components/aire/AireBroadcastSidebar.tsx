@@ -18,12 +18,14 @@ function formatMinSec(ms: number): string {
 function iconoInterrupcion(tipo: TipoInterrupcionDj): React.ReactElement {
   if (tipo === "HORA") return <Clock className="h-4 w-4" aria-hidden />;
   if (tipo === "CLIMA") return <Cloud className="h-4 w-4" aria-hidden />;
+  if (tipo === "AUDIO") return <Volume2 className="h-4 w-4" aria-hidden />;
   return <Megaphone className="h-4 w-4" aria-hidden />;
 }
 
 function labelInterrupcion(tipo: TipoInterrupcionDj): string {
   if (tipo === "HORA") return "Hora exacta";
   if (tipo === "CLIMA") return "Clima";
+  if (tipo === "AUDIO") return "Audio";
   return "Publicidad";
 }
 

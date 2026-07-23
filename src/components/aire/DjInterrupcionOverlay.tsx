@@ -16,6 +16,7 @@ const TITULOS: Record<TipoInterrupcionDj, string> = {
   HORA: "La hora",
   CLIMA: "El tiempo",
   PUBLICIDAD: "Publicidad",
+  AUDIO: "Audio",
 };
 
 export function DjInterrupcionOverlay({
@@ -49,7 +50,7 @@ export function DjInterrupcionOverlay({
           ⛅
         </p>
       ) : null}
-      {tipo === "PUBLICIDAD" && subtitulo ? (
+      {(tipo === "PUBLICIDAD" || tipo === "AUDIO") && subtitulo ? (
         <p className="text-center text-lg font-medium text-white">{subtitulo}</p>
       ) : null}
     </AireScopedOverlay>

@@ -77,6 +77,9 @@ function djConfigInicial(target: SlotFormTarget): {
   djClimaIntervaloMin: number;
   djPublicidadActiva: boolean;
   djPublicidadIntervaloMin: number;
+  djAudioActiva: boolean;
+  djAudioIntervaloMin: number;
+  djAudioCarpetaId: string | null;
 } {
   const defaults = {
     presentacionCadaTemas: 1,
@@ -86,6 +89,9 @@ function djConfigInicial(target: SlotFormTarget): {
     djClimaIntervaloMin: 30,
     djPublicidadActiva: false,
     djPublicidadIntervaloMin: 30,
+    djAudioActiva: false,
+    djAudioIntervaloMin: 30,
+    djAudioCarpetaId: null,
   };
   if (target.kind === "editar-slot") {
     const s = target.slot;
@@ -97,6 +103,9 @@ function djConfigInicial(target: SlotFormTarget): {
       djClimaIntervaloMin: s.djClimaIntervaloMin ?? 30,
       djPublicidadActiva: s.djPublicidadActiva,
       djPublicidadIntervaloMin: s.djPublicidadIntervaloMin ?? 30,
+      djAudioActiva: s.djAudioActiva,
+      djAudioIntervaloMin: s.djAudioIntervaloMin ?? 30,
+      djAudioCarpetaId: s.djAudioCarpetaId,
     };
   }
   if (target.kind === "editar-evento") {
@@ -109,10 +118,15 @@ function djConfigInicial(target: SlotFormTarget): {
       djClimaIntervaloMin: e.djClimaIntervaloMin ?? 30,
       djPublicidadActiva: e.djPublicidadActiva,
       djPublicidadIntervaloMin: e.djPublicidadIntervaloMin ?? 30,
+      djAudioActiva: e.djAudioActiva,
+      djAudioIntervaloMin: e.djAudioIntervaloMin ?? 30,
+      djAudioCarpetaId: e.djAudioCarpetaId,
     };
   }
   return defaults;
 }
+
+type CarpetaAudioOptionRow = { id: string; nombre: string; esActiva: boolean; archivosCount: number };
 
 type DjTipoCampoProps = {
   playlistId: string;
@@ -124,6 +138,9 @@ type DjTipoCampoProps = {
   djClimaIntervaloMin: number;
   djPublicidadActiva: boolean;
   djPublicidadIntervaloMin: number;
+  djAudioActiva: boolean;
+  djAudioIntervaloMin: number;
+  djAudioCarpetaId: string | null;
   onPlaylistChange: (id: string, nombre: string) => void;
   onVoz1Change: (id: string) => void;
   onPresentacionCadaTemasChange: (n: number) => void;
@@ -133,6 +150,9 @@ type DjTipoCampoProps = {
   onDjClimaIntervaloMinChange: (n: number) => void;
   onDjPublicidadActivaChange: (v: boolean) => void;
   onDjPublicidadIntervaloMinChange: (n: number) => void;
+  onDjAudioActivaChange: (v: boolean) => void;
+  onDjAudioIntervaloMinChange: (n: number) => void;
+  onDjAudioCarpetaIdChange: (id: string) => void;
 };
 
 function DjTipoCampo({
@@ -145,6 +165,9 @@ function DjTipoCampo({
   djClimaIntervaloMin,
   djPublicidadActiva,
   djPublicidadIntervaloMin,
+  djAudioActiva,
+  djAudioIntervaloMin,
+  djAudioCarpetaId,
   onPlaylistChange,
   onVoz1Change,
   onPresentacionCadaTemasChange,
@@ -154,6 +177,9 @@ function DjTipoCampo({
   onDjClimaIntervaloMinChange,
   onDjPublicidadActivaChange,
   onDjPublicidadIntervaloMinChange,
+  onDjAudioActivaChange,
+  onDjAudioIntervaloMinChange,
+  onDjAudioCarpetaIdChange,
 }: DjTipoCampoProps): React.ReactElement {
   const ready = useEnterTransition();
   const [sinSpotify, setSinSpotify] = useState(false);
@@ -163,6 +189,7 @@ function DjTipoCampo({
   const [voces, setVoces] = useState<VozOptionRow[]>([]);
   const [cargandoVoces, setCargandoVoces] = useState(true);
   const [publicidadesActivas, setPublicidadesActivas] = useState<number | null>(null);
+  const [carpetasAudio, setCarpetasAudio] = useState<CarpetaAudioOptionRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,6 +251,19 @@ function DjTipoCampo({
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const res = await fetch("/api/audios/carpetas");
+      if (cancelled) return;
+      if (res.ok) setCarpetasAudio((await res.json()) as CarpetaAudioOptionRow[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const carpetasSeleccionables = carpetasAudio.filter((c) => c.esActiva && c.archivosCount > 0);
   const propiasDisponibles = playlists.some((p) => p.canReadTracksViaApi);
 
   return (
@@ -373,6 +413,50 @@ function DjTipoCampo({
             {publicidadesActivas === 1 ? "" : "s"} en rotación.
           </p>
         ) : null}
+        <label className="flex flex-col gap-1.5 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+          <span className="flex items-center gap-2">
+            <input type="checkbox" checked={djAudioActiva} onChange={(ev) => onDjAudioActivaChange(ev.target.checked)} />
+            <span>Audios (jingles / IDs / cortinas)</span>
+          </span>
+          {djAudioActiva ? (
+            <span className="flex items-center gap-2 pl-6 sm:pl-0">
+              <Input
+                type="number"
+                min={DJ_INTERRUPCION_INTERVALO_MIN}
+                max={DJ_INTERRUPCION_INTERVALO_MAX}
+                className="w-full max-w-[7rem] sm:w-24"
+                value={djAudioIntervaloMin}
+                onChange={(ev) => onDjAudioIntervaloMinChange(clampDjIntervaloMin(Number(ev.target.value)))}
+                aria-label="Intervalo audios en minutos"
+              />
+              <span className="text-zinc-500">min</span>
+            </span>
+          ) : null}
+        </label>
+        {djAudioActiva ? (
+          carpetasSeleccionables.length === 0 ? (
+            <p className="text-xs text-amber-400">
+              No hay carpetas activas con audios.{" "}
+              <Link href="/audios" className="font-medium underline hover:text-amber-300">
+                Subir en Audios
+              </Link>
+              .
+            </p>
+          ) : (
+            <Select
+              label="Carpeta de audios"
+              value={djAudioCarpetaId ?? ""}
+              onChange={(ev) => onDjAudioCarpetaIdChange(ev.target.value)}
+            >
+              <option value="">Elegí una carpeta</option>
+              {carpetasSeleccionables.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} ({c.archivosCount})
+                </option>
+              ))}
+            </Select>
+          )
+        ) : null}
       </fieldset>
     </div>
   );
@@ -478,6 +562,9 @@ function buildDjPayload(
     djClimaIntervaloMin: dj.djClimaActivo ? dj.djClimaIntervaloMin : null,
     djPublicidadActiva: dj.djPublicidadActiva,
     djPublicidadIntervaloMin: dj.djPublicidadActiva ? dj.djPublicidadIntervaloMin : null,
+    djAudioActiva: dj.djAudioActiva,
+    djAudioIntervaloMin: dj.djAudioActiva ? dj.djAudioIntervaloMin : null,
+    djAudioCarpetaId: dj.djAudioActiva ? dj.djAudioCarpetaId : null,
   };
 }
 
@@ -501,6 +588,9 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
   const [djClimaIntervaloMin, setDjClimaIntervaloMin] = useState(djIni.djClimaIntervaloMin);
   const [djPublicidadActiva, setDjPublicidadActiva] = useState(djIni.djPublicidadActiva);
   const [djPublicidadIntervaloMin, setDjPublicidadIntervaloMin] = useState(djIni.djPublicidadIntervaloMin);
+  const [djAudioActiva, setDjAudioActiva] = useState(djIni.djAudioActiva);
+  const [djAudioIntervaloMin, setDjAudioIntervaloMin] = useState(djIni.djAudioIntervaloMin);
+  const [djAudioCarpetaId, setDjAudioCarpetaId] = useState(djIni.djAudioCarpetaId);
   const [enviando, setEnviando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -515,6 +605,9 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
     djClimaIntervaloMin,
     djPublicidadActiva,
     djPublicidadIntervaloMin,
+    djAudioActiva,
+    djAudioIntervaloMin,
+    djAudioCarpetaId,
   };
 
   async function eliminar(): Promise<void> {
@@ -545,6 +638,10 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
       const horaNorm = normalizarHoraHHMM(horaInicio);
       if (!horaNorm) {
         setError("Hora de inicio inválida");
+        return;
+      }
+      if (djAudioActiva && !djAudioCarpetaId) {
+        setError("Elegí una carpeta de audios para activar la interrupción de Audios");
         return;
       }
       const djPayload = buildDjPayload(playlistId, playlistNombre, voz1Id, djState);
@@ -668,6 +765,9 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
         djClimaIntervaloMin={djClimaIntervaloMin}
         djPublicidadActiva={djPublicidadActiva}
         djPublicidadIntervaloMin={djPublicidadIntervaloMin}
+        djAudioActiva={djAudioActiva}
+        djAudioIntervaloMin={djAudioIntervaloMin}
+        djAudioCarpetaId={djAudioCarpetaId}
         onPlaylistChange={(id, nombre) => {
           setPlaylistId(id);
           setPlaylistNombre(nombre);
@@ -680,6 +780,9 @@ export function SlotForm({ target, onSuccess, onCancel, className }: SlotFormPro
         onDjClimaIntervaloMinChange={setDjClimaIntervaloMin}
         onDjPublicidadActivaChange={setDjPublicidadActiva}
         onDjPublicidadIntervaloMinChange={setDjPublicidadIntervaloMin}
+        onDjAudioActivaChange={setDjAudioActiva}
+        onDjAudioIntervaloMinChange={setDjAudioIntervaloMin}
+        onDjAudioCarpetaIdChange={setDjAudioCarpetaId}
       />
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
       <div className="flex flex-wrap gap-2 pt-1">

@@ -1,6 +1,5 @@
 import type { DjInterrupcionesConfig } from "@/lib/grilla/djConfigSchema";
-
-export type TipoInterrupcionDj = "HORA" | "CLIMA" | "PUBLICIDAD";
+import type { TipoInterrupcionDj } from "@/types/grilla";
 
 export type InterrupcionProyectada = {
   tipo: TipoInterrupcionDj;
@@ -22,6 +21,9 @@ function interrupcionesActivas(config: DjInterrupcionesConfig): InterrupcionActi
   }
   if (config.djPublicidadActiva && config.djPublicidadIntervaloMin !== null) {
     out.push({ tipo: "PUBLICIDAD", intervaloMin: config.djPublicidadIntervaloMin });
+  }
+  if (config.djAudioActiva && config.djAudioIntervaloMin !== null) {
+    out.push({ tipo: "AUDIO", intervaloMin: config.djAudioIntervaloMin });
   }
   return out;
 }
@@ -47,6 +49,7 @@ export function leyendaInterrupciones(config: DjInterrupcionesConfig): string | 
   if (config.djHoraActiva) parts.push("H");
   if (config.djClimaActivo) parts.push("C");
   if (config.djPublicidadActiva) parts.push("P");
+  if (config.djAudioActiva) parts.push("A");
   if (parts.length === 0) return null;
   return parts.join(" · ");
 }

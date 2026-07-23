@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, CloudSun, Megaphone, Radio } from "lucide-react";
+import { Clock, CloudSun, Megaphone, Music2, Radio } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -11,13 +11,16 @@ import {
 } from "@/lib/grilla/djConfigSchema";
 import { cn } from "@/lib/utils";
 
-export type InterruptionTipo = "hora" | "clima" | "publicidad" | "presentacion";
+export type InterruptionTipo = "hora" | "clima" | "publicidad" | "presentacion" | "audio";
+
+export type InterruptionCarpetaOption = { id: string; nombre: string; archivosCount: number };
 
 const ICONOS: Record<InterruptionTipo, React.ReactElement> = {
   hora: <Clock className="h-5 w-5" aria-hidden />,
   clima: <CloudSun className="h-5 w-5" aria-hidden />,
   publicidad: <Megaphone className="h-5 w-5" aria-hidden />,
   presentacion: <Radio className="h-5 w-5" aria-hidden />,
+  audio: <Music2 className="h-5 w-5" aria-hidden />,
 };
 
 const TITULOS: Record<InterruptionTipo, string> = {
@@ -25,6 +28,7 @@ const TITULOS: Record<InterruptionTipo, string> = {
   clima: "Clima",
   publicidad: "Publicidad",
   presentacion: "Presentación IA",
+  audio: "Audios",
 };
 
 const DESCRIPCIONES: Record<InterruptionTipo, string> = {
@@ -32,6 +36,7 @@ const DESCRIPCIONES: Record<InterruptionTipo, string> = {
   clima: "Inserta el clima local con placeholders {temp} y {city}.",
   publicidad: "Rota publicidades activas del catálogo.",
   presentacion: "Presenta cada N temas con la voz locutora elegida.",
+  audio: "Inserta jingles, IDs o cortinas de una carpeta de la biblioteca.",
 };
 
 export type InterruptionConfigCardProps = {
@@ -42,6 +47,9 @@ export type InterruptionConfigCardProps = {
   onIntervaloChange?: (n: number) => void;
   presentacionCadaTemas?: number;
   onPresentacionCadaTemasChange?: (n: number) => void;
+  carpetasOptions?: InterruptionCarpetaOption[];
+  carpetaId?: string | null;
+  onCarpetaIdChange?: (id: string) => void;
   className?: string;
 };
 
@@ -53,6 +61,9 @@ export function InterruptionConfigCard({
   onIntervaloChange,
   presentacionCadaTemas = 2,
   onPresentacionCadaTemasChange,
+  carpetasOptions = [],
+  carpetaId = null,
+  onCarpetaIdChange,
   className,
 }: InterruptionConfigCardProps): React.ReactElement {
   return (
@@ -125,6 +136,30 @@ export function InterruptionConfigCard({
               }}
             />
           )}
+          {tipo === "audio" ? (
+            carpetasOptions.length === 0 ? (
+              <p className="text-xs text-[color:var(--warning)]">
+                No hay carpetas activas con audios. Subí audios en{" "}
+                <a href="/audios" className="font-medium underline">
+                  /audios
+                </a>
+                .
+              </p>
+            ) : (
+              <Select
+                label="Carpeta de audios"
+                value={carpetaId ?? ""}
+                onChange={(e) => onCarpetaIdChange?.(e.target.value)}
+              >
+                <option value="">Elegí una carpeta</option>
+                {carpetasOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre} ({c.archivosCount})
+                  </option>
+                ))}
+              </Select>
+            )
+          ) : null}
           <Button variant="secondary" size="sm" disabled className="w-full sm:w-auto">
             Escuchar ejemplo
           </Button>

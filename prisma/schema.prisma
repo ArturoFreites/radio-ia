@@ -87,6 +87,11 @@ enum TipoSlot {
   DJ
 }
 
+enum ModoRotacionAudio {
+  SECUENCIAL
+  ALEATORIO
+}
+
 enum ProveedorConsumo {
   GEMINI
   ELEVENLABS
@@ -121,6 +126,7 @@ model Radio {
   slotsGrilla     SlotGrilla[]
   eventosGrilla   EventoGrilla[]
   consumoApi      ConsumoApiRegistro[]
+  audioCarpetas   AudioCarpeta[]
 }
 
 model SlotGrilla {
@@ -145,6 +151,9 @@ model SlotGrilla {
   djClimaIntervaloMin      Int?
   djPublicidadActiva       Boolean   @default(false)
   djPublicidadIntervaloMin Int?
+  djAudioActiva            Boolean   @default(false)
+  djAudioIntervaloMin      Int?
+  djAudioCarpetaId         String?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 }
@@ -170,7 +179,39 @@ model EventoGrilla {
   djClimaIntervaloMin      Int?
   djPublicidadActiva       Boolean   @default(false)
   djPublicidadIntervaloMin Int?
+  djAudioActiva            Boolean   @default(false)
+  djAudioIntervaloMin      Int?
+  djAudioCarpetaId         String?
   createdAt                DateTime  @default(now())
+}
+
+model AudioCarpeta {
+  id           String            @id @default(cuid())
+  radioId      String
+  radio        Radio             @relation(fields: [radioId], references: [id], onDelete: Cascade)
+  nombre       String
+  modoRotacion ModoRotacionAudio @default(SECUENCIAL)
+  esActiva     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  archivos     AudioArchivo[]
+
+  @@index([radioId])
+}
+
+model AudioArchivo {
+  id          String       @id @default(cuid())
+  carpetaId   String
+  carpeta     AudioCarpeta @relation(fields: [carpetaId], references: [id], onDelete: Cascade)
+  nombre      String
+  audioUrl    String
+  duracionSec Int?
+  orden       Int          @default(0)
+  esActivo    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([carpetaId, orden])
 }
 
 model Usuario {

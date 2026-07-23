@@ -5,6 +5,7 @@ import {
   LayoutGrid,
   Megaphone,
   Mic,
+  Music2,
   Radio,
   Settings,
 } from "lucide-react";
@@ -25,6 +26,7 @@ export const DASHBOARD_NAV_LINKS: DashboardNavLink[] = [
   { href: "/spotify", label: "Spotify", brand: "spotify" },
   { href: "/locutores", label: "Locutores IA", icon: Mic },
   { href: "/publicidad", label: "Publicidad", icon: Megaphone },
+  { href: "/audios", label: "Audios", icon: Music2 },
   { href: "/almacenamiento", label: "Almacenamiento", icon: HardDrive },
   { href: "/configuracion", label: "Configuración", icon: Settings },
 ];

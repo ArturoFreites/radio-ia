@@ -13,6 +13,8 @@ export function etiquetaCategoria(nombre: string): string {
       return "Audio Spotify / DJ";
     case "programas":
       return "Programas generados";
+    case "biblioteca":
+      return "Biblioteca de audios";
     case "otros":
       return "Otros archivos";
     default:

@@ -6,7 +6,7 @@ import { Trash2, X } from "lucide-react";
 import { SpotifyIcon } from "@/components/brand/SpotifyIcon";
 import { useEffect, useMemo, useState } from "react";
 import { HoraInicioInput } from "@/components/grilla/HoraInicioInput";
-import { InterruptionConfigCard } from "@/components/grilla/InterruptionConfigCard";
+import { InterruptionConfigCard, type InterruptionCarpetaOption } from "@/components/grilla/InterruptionConfigCard";
 import type { SlotFormTarget } from "@/components/grilla/SlotForm";
 import { PlaylistPicker, type PlaylistPickerItem } from "@/components/airon/PlaylistPicker";
 import { SlotWizard, type SlotWizardStep } from "@/components/airon/SlotWizard";
@@ -32,6 +32,8 @@ const DIAS_SEMANA = [
 ];
 
 type VozOptionRow = { voz: { id: string; nombre: string; personalidad?: string | null } };
+
+type CarpetaAudioApiRow = { id: string; nombre: string; esActiva: boolean; archivosCount: number };
 
 function playlistInicial(target: SlotFormTarget): { id: string; nombre: string } {
   if (target.kind === "editar-slot") {
@@ -63,6 +65,9 @@ function djConfigInicial(target: SlotFormTarget): {
   djClimaIntervaloMin: number;
   djPublicidadActiva: boolean;
   djPublicidadIntervaloMin: number;
+  djAudioActiva: boolean;
+  djAudioIntervaloMin: number;
+  djAudioCarpetaId: string | null;
 } {
   const defaults = {
     presentacionCadaTemas: 2,
@@ -72,6 +77,9 @@ function djConfigInicial(target: SlotFormTarget): {
     djClimaIntervaloMin: 90,
     djPublicidadActiva: false,
     djPublicidadIntervaloMin: 30,
+    djAudioActiva: false,
+    djAudioIntervaloMin: 45,
+    djAudioCarpetaId: null,
   };
   const row: GrillaEditorSlotRow | GrillaEditorEventoRow | null =
     target.kind === "editar-slot"
@@ -88,6 +96,9 @@ function djConfigInicial(target: SlotFormTarget): {
     djClimaIntervaloMin: row.djClimaIntervaloMin ?? 90,
     djPublicidadActiva: row.djPublicidadActiva,
     djPublicidadIntervaloMin: row.djPublicidadIntervaloMin ?? 30,
+    djAudioActiva: row.djAudioActiva,
+    djAudioIntervaloMin: row.djAudioIntervaloMin ?? 45,
+    djAudioCarpetaId: row.djAudioCarpetaId,
   };
 }
 
@@ -183,6 +194,9 @@ export function SlotWizardDialog({
   const [djClimaIntervaloMin, setDjClimaIntervaloMin] = useState(90);
   const [djPublicidadActiva, setDjPublicidadActiva] = useState(false);
   const [djPublicidadIntervaloMin, setDjPublicidadIntervaloMin] = useState(30);
+  const [djAudioActiva, setDjAudioActiva] = useState(false);
+  const [djAudioIntervaloMin, setDjAudioIntervaloMin] = useState(45);
+  const [djAudioCarpetaId, setDjAudioCarpetaId] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +206,7 @@ export function SlotWizardDialog({
   const [cargandoPlaylists, setCargandoPlaylists] = useState(false);
   const [voces, setVoces] = useState<VozOptionRow[]>([]);
   const [cargandoVoces, setCargandoVoces] = useState(false);
+  const [carpetasAudio, setCarpetasAudio] = useState<CarpetaAudioApiRow[]>([]);
 
   useEffect(() => {
     if (!open || !target) return;
@@ -215,6 +230,9 @@ export function SlotWizardDialog({
     setDjClimaIntervaloMin(dj.djClimaIntervaloMin);
     setDjPublicidadActiva(dj.djPublicidadActiva);
     setDjPublicidadIntervaloMin(dj.djPublicidadIntervaloMin);
+    setDjAudioActiva(dj.djAudioActiva);
+    setDjAudioIntervaloMin(dj.djAudioIntervaloMin);
+    setDjAudioCarpetaId(dj.djAudioCarpetaId);
     setError(null);
   }, [open, target]);
 
@@ -256,6 +274,19 @@ export function SlotWizardDialog({
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await fetch("/api/audios/carpetas");
+      if (cancelled) return;
+      if (res.ok) setCarpetasAudio((await res.json()) as CarpetaAudioApiRow[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === "Escape") onClose();
     };
@@ -279,6 +310,14 @@ export function SlotWizardDialog({
           esPropia: p.canReadTracksViaApi,
         })),
     [playlistsRaw],
+  );
+
+  const carpetasOptions: InterruptionCarpetaOption[] = useMemo(
+    () =>
+      carpetasAudio
+        .filter((c) => c.esActiva && c.archivosCount > 0)
+        .map((c) => ({ id: c.id, nombre: c.nombre, archivosCount: c.archivosCount })),
+    [carpetasAudio],
   );
 
   const esEdicion = target?.kind === "editar-slot" || target?.kind === "editar-evento";
@@ -323,7 +362,14 @@ export function SlotWizardDialog({
         djClimaIntervaloMin: djClimaActivo ? djClimaIntervaloMin : null,
         djPublicidadActiva,
         djPublicidadIntervaloMin: djPublicidadActiva ? djPublicidadIntervaloMin : null,
+        djAudioActiva,
+        djAudioIntervaloMin: djAudioActiva ? djAudioIntervaloMin : null,
+        djAudioCarpetaId: djAudioActiva ? djAudioCarpetaId : null,
       };
+      if (djAudioActiva && !djAudioCarpetaId) {
+        setError("Elegí una carpeta de audios para activar la interrupción de Audios");
+        return;
+      }
       const horaNorm = normalizarHoraHHMM(horaInicio);
       if (!horaNorm) {
         setError("Hora de inicio inválida");
@@ -562,6 +608,16 @@ export function SlotWizardDialog({
                     onActivoChange={setDjPublicidadActiva}
                     intervaloMin={djPublicidadIntervaloMin}
                     onIntervaloChange={setDjPublicidadIntervaloMin}
+                  />
+                  <InterruptionConfigCard
+                    tipo="audio"
+                    activo={djAudioActiva}
+                    onActivoChange={setDjAudioActiva}
+                    intervaloMin={djAudioIntervaloMin}
+                    onIntervaloChange={setDjAudioIntervaloMin}
+                    carpetasOptions={carpetasOptions}
+                    carpetaId={djAudioCarpetaId}
+                    onCarpetaIdChange={setDjAudioCarpetaId}
                   />
                   <InterruptionConfigCard
                     tipo="presentacion"

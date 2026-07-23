@@ -9,8 +9,9 @@ import {
   type ProximaInterrupcionDj,
   type UltimaEjecucionMap,
 } from "@/lib/aire/djInterrupciones";
+import { elegirSiguienteIndiceAudio, type AudioRotacionItem } from "@/lib/audios/rotacion";
 import { djConfigSignature, type DjInterrupcionesConfig } from "@/lib/grilla/djConfigSchema";
-import type { TipoInterrupcionDj } from "@/types/grilla";
+import type { DjInterrupcionAudiosResponse, TipoInterrupcionDj } from "@/types/grilla";
 
 type PublicidadItem = { id: string; nombre: string; tieneAudio: boolean };
 
@@ -18,6 +19,7 @@ type PreparedInterrupcion = {
   blob: Blob;
   subtitulo?: string;
   publicidadId?: string;
+  audioId?: string;
 };
 
 type UseDjInterrupcionesParams = {
@@ -32,12 +34,18 @@ type UseDjInterrupcionesParams = {
   isBusy: () => boolean;
 };
 
-function sincronizarUltimasDesdeConfig(ultimas: UltimaEjecucionMap, config: DjInterrupcionesConfig, now: number): void {
+function sincronizarUltimasDesdeConfig(
+  ultimas: UltimaEjecucionMap,
+  config: DjInterrupcionesConfig,
+  now: number,
+): void {
   if (!config.djHoraActiva) delete ultimas.HORA;
   if (config.djClimaActivo) ultimas.CLIMA = now;
   else delete ultimas.CLIMA;
   if (config.djPublicidadActiva) ultimas.PUBLICIDAD = now;
   else delete ultimas.PUBLICIDAD;
+  if (config.djAudioActiva) ultimas.AUDIO = now;
+  else delete ultimas.AUDIO;
 }
 
 function resolverPublicidad(
@@ -65,22 +73,38 @@ export function useDjInterrupciones({
   const prepTimerRef = useRef<number | null>(null);
   const publicidadesRef = useRef<PublicidadItem[]>([]);
   const publicidadIndexRef = useRef(0);
+  const audiosRef = useRef<AudioRotacionItem[]>([]);
+  const audioIndexRef = useRef(-1);
+  const ultimoAudioIdRef = useRef<string | null>(null);
+  const audioModoRef = useRef<"SECUENCIAL" | "ALEATORIO">("SECUENCIAL");
+  const carpetaNombreRef = useRef("Audio");
   const runningRef = useRef(false);
   const preparedRef = useRef<Map<string, PreparedInterrupcion>>(new Map());
   const prepPromisesRef = useRef<Map<string, Promise<PreparedInterrupcion | null>>>(new Map());
   const configRef = useRef(config);
-  configRef.current = config;
   const configSigRef = useRef("");
   const slotInicioSigRef = useRef("");
   const slotInicioRef = useRef<number | null>(null);
-  slotInicioRef.current = slotInicioMs;
   const voiceIdRef = useRef(voiceId);
-  voiceIdRef.current = voiceId;
-
-  const configSig = config ? djConfigSignature(config) : "";
+  const programarRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
-    if (!enabled || !config) return undefined;
+    configRef.current = config;
+  }, [config]);
+
+  useEffect(() => {
+    slotInicioRef.current = slotInicioMs;
+  }, [slotInicioMs]);
+
+  useEffect(() => {
+    voiceIdRef.current = voiceId;
+  }, [voiceId]);
+
+  const configSig = config ? djConfigSignature(config) : "";
+  const carpetaId = config?.djAudioCarpetaId ?? null;
+
+  useEffect(() => {
+    if (!enabled || !configSig) return undefined;
     void fetch(`/api/aire/dj-interrupcion/publicidad?token=${encodeURIComponent(aireToken)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { publicidades?: PublicidadItem[] } | null) => {
@@ -92,6 +116,28 @@ export function useDjInterrupciones({
     return undefined;
   }, [aireToken, enabled, configSig]);
 
+  useEffect(() => {
+    if (!enabled || !carpetaId) {
+      audiosRef.current = [];
+      return undefined;
+    }
+    void fetch(
+      `/api/aire/dj-interrupcion/audios?token=${encodeURIComponent(aireToken)}&carpetaId=${encodeURIComponent(carpetaId)}`,
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: DjInterrupcionAudiosResponse | null) => {
+        audiosRef.current = data?.archivos ?? [];
+        audioModoRef.current = data?.modoRotacion ?? "SECUENCIAL";
+        carpetaNombreRef.current = data?.carpetaNombre ?? "Audio";
+        audioIndexRef.current = -1;
+        ultimoAudioIdRef.current = null;
+      })
+      .catch(() => {
+        audiosRef.current = [];
+      });
+    return undefined;
+  }, [aireToken, enabled, carpetaId, configSig]);
+
   const limpiarPreparacion = useCallback((): void => {
     if (prepTimerRef.current !== null) {
       window.clearTimeout(prepTimerRef.current);
@@ -101,7 +147,7 @@ export function useDjInterrupciones({
     prepPromisesRef.current.clear();
   }, []);
 
-  const prepararInterrupcion = useCallback(
+  const prepararInterrupcionTts = useCallback(
     async (
       tipo: TipoInterrupcionDj,
       publicidadId?: string,
@@ -151,8 +197,56 @@ export function useDjInterrupciones({
     [aireToken],
   );
 
+  const prepararAudioBiblioteca = useCallback(
+    async (audioId: string, subtitulo: string): Promise<PreparedInterrupcion | null> => {
+      const cacheKey = claveCacheInterrupcion("AUDIO", undefined, undefined, audioId);
+      const cached = preparedRef.current.get(cacheKey);
+      if (cached) return cached;
+
+      const inflight = prepPromisesRef.current.get(cacheKey);
+      if (inflight) return inflight;
+
+      const promise = (async (): Promise<PreparedInterrupcion | null> => {
+        try {
+          const res = await fetch(
+            `/api/aire/audio-biblioteca/${encodeURIComponent(audioId)}?token=${encodeURIComponent(aireToken)}`,
+          );
+          const contentType = res.headers.get("content-type") ?? "";
+          if (!res.ok || !contentType.startsWith("audio/")) return null;
+          const blob = await res.blob();
+          const prepared: PreparedInterrupcion = { blob, subtitulo, audioId };
+          preparedRef.current.set(cacheKey, prepared);
+          return prepared;
+        } catch {
+          return null;
+        } finally {
+          prepPromisesRef.current.delete(cacheKey);
+        }
+      })();
+
+      prepPromisesRef.current.set(cacheKey, promise);
+      return promise;
+    },
+    [aireToken],
+  );
+
   const prepararProximaProgramada = useCallback(
     (proxima: ProximaInterrupcionDj): void => {
+      if (proxima.tipo === "AUDIO") {
+        const items = audiosRef.current;
+        if (items.length === 0) return;
+        const idx = elegirSiguienteIndiceAudio(
+          items,
+          audioModoRef.current,
+          audioIndexRef.current,
+          ultimoAudioIdRef.current,
+        );
+        const item = items[idx];
+        if (!item) return;
+        void prepararAudioBiblioteca(item.id, item.nombre);
+        return;
+      }
+
       let publicidadId: string | undefined;
       let subtitulo: string | undefined;
 
@@ -163,9 +257,9 @@ export function useDjInterrupciones({
         subtitulo = item.subtitulo;
       }
 
-      void prepararInterrupcion(proxima.tipo, publicidadId, subtitulo, proxima.horaObjetivoMs);
+      void prepararInterrupcionTts(proxima.tipo, publicidadId, subtitulo, proxima.horaObjetivoMs);
     },
-    [prepararInterrupcion],
+    [prepararAudioBiblioteca, prepararInterrupcionTts],
   );
 
   const programarPreparacion = useCallback(
@@ -186,7 +280,7 @@ export function useDjInterrupciones({
     [prepararProximaProgramada],
   );
 
-  const obtenerAudioPreparado = useCallback(
+  const obtenerAudioPreparadoTts = useCallback(
     async (
       tipo: TipoInterrupcionDj,
       publicidadId?: string,
@@ -199,15 +293,15 @@ export function useDjInterrupciones({
         preparedRef.current.delete(cacheKey);
         return cached;
       }
-      return prepararInterrupcion(tipo, publicidadId, subtitulo, horaObjetivoMs);
+      return prepararInterrupcionTts(tipo, publicidadId, subtitulo, horaObjetivoMs);
     },
-    [prepararInterrupcion],
+    [prepararInterrupcionTts],
   );
 
   const resolverPublicidadPreparada = useCallback(
     async (tipo: TipoInterrupcionDj, horaObjetivoMs?: number): Promise<PreparedInterrupcion | null> => {
       if (tipo !== "PUBLICIDAD") {
-        return obtenerAudioPreparado(tipo, undefined, undefined, horaObjetivoMs);
+        return obtenerAudioPreparadoTts(tipo, undefined, undefined, horaObjetivoMs);
       }
 
       const total = publicidadesRef.current.length;
@@ -219,7 +313,7 @@ export function useDjInterrupciones({
         const item = resolverPublicidad(publicidadesRef.current, idx);
         if (!item) continue;
 
-        const prepared = await obtenerAudioPreparado(tipo, item.publicidadId, item.subtitulo);
+        const prepared = await obtenerAudioPreparadoTts(tipo, item.publicidadId, item.subtitulo);
         if (prepared) {
           publicidadIndexRef.current = siguienteIndicePublicidad(idx, total);
           return prepared;
@@ -228,8 +322,51 @@ export function useDjInterrupciones({
 
       return null;
     },
-    [obtenerAudioPreparado],
+    [obtenerAudioPreparadoTts],
   );
+
+  const resolverAudioBibliotecaPreparada = useCallback(async (): Promise<PreparedInterrupcion | null> => {
+    const items = audiosRef.current;
+    if (items.length === 0) return null;
+
+    const total = items.length;
+    for (let intento = 0; intento < total; intento += 1) {
+      const idx = elegirSiguienteIndiceAudio(
+        items,
+        audioModoRef.current,
+        audioIndexRef.current,
+        ultimoAudioIdRef.current,
+      );
+      const item = items[idx];
+      if (!item) continue;
+
+      const cacheKey = claveCacheInterrupcion("AUDIO", undefined, undefined, item.id);
+      const cached = preparedRef.current.get(cacheKey);
+      if (cached) {
+        preparedRef.current.delete(cacheKey);
+        audioIndexRef.current = idx;
+        ultimoAudioIdRef.current = item.id;
+        return cached;
+      }
+
+      const prepared = await prepararAudioBiblioteca(
+        item.id,
+        item.nombre || carpetaNombreRef.current,
+      );
+      if (prepared) {
+        preparedRef.current.delete(cacheKey);
+        audioIndexRef.current = idx;
+        ultimoAudioIdRef.current = item.id;
+        return prepared;
+      }
+
+      // Si falla este archivo, forzar avanzar el índice para el siguiente intento
+      audioIndexRef.current = idx;
+      ultimoAudioIdRef.current = item.id;
+    }
+
+    return null;
+  }, [prepararAudioBiblioteca]);
 
   const reproducirBlob = useCallback(async (blob: Blob): Promise<void> => {
     await new Promise<void>((resolve, reject) => {
@@ -250,14 +387,20 @@ export function useDjInterrupciones({
   const ejecutarInterrupcion = useCallback(
     async (tipo: TipoInterrupcionDj, horaObjetivoMs?: number): Promise<void> => {
       const cfg = configRef.current;
-      if (runningRef.current || !cfg || !voiceIdRef.current) return;
+      if (runningRef.current || !cfg) return;
+      if (tipo !== "AUDIO" && !voiceIdRef.current) return;
       if (tipo === "PUBLICIDAD" && publicidadesRef.current.length === 0) return;
+      if (tipo === "AUDIO" && audiosRef.current.length === 0) return;
 
       runningRef.current = true;
       let fadeOutHecho = false;
 
       try {
-        const prepared = await resolverPublicidadPreparada(tipo, horaObjetivoMs);
+        const prepared =
+          tipo === "AUDIO"
+            ? await resolverAudioBibliotecaPreparada()
+            : await resolverPublicidadPreparada(tipo, horaObjetivoMs);
+
         if (!prepared) {
           if (tipo === "HORA" && horaObjetivoMs != null) {
             ultimasRef.current.HORA = horaObjetivoMs;
@@ -267,7 +410,12 @@ export function useDjInterrupciones({
           return;
         }
 
-        onOverlay(tipo, prepared.subtitulo);
+        const subtitulo =
+          tipo === "AUDIO"
+            ? prepared.subtitulo ?? carpetaNombreRef.current
+            : prepared.subtitulo;
+
+        onOverlay(tipo, subtitulo);
         await onBeforePlay();
         fadeOutHecho = true;
 
@@ -291,7 +439,14 @@ export function useDjInterrupciones({
         runningRef.current = false;
       }
     },
-    [onAfterPlay, onBeforePlay, onOverlay, reproducirBlob, resolverPublicidadPreparada],
+    [
+      onAfterPlay,
+      onBeforePlay,
+      onOverlay,
+      reproducirBlob,
+      resolverAudioBibliotecaPreparada,
+      resolverPublicidadPreparada,
+    ],
   );
 
   const programar = useCallback((): void => {
@@ -300,27 +455,54 @@ export function useDjInterrupciones({
       timerRef.current = null;
     }
     const cfg = configRef.current;
-    if (!enabled || !cfg || !voiceIdRef.current) return;
+    if (!enabled || !cfg) return;
 
-    const proxima = calcularProximaInterrupcion(
+    const tieneAudio = cfg.djAudioActiva && Boolean(cfg.djAudioCarpetaId);
+    const tieneTts = cfg.djHoraActiva || cfg.djClimaActivo || cfg.djPublicidadActiva;
+    if (!tieneAudio && !tieneTts) return;
+    if (tieneTts && !voiceIdRef.current && !tieneAudio) return;
+
+    let proxima = calcularProximaInterrupcion(
       cfg,
       ultimasRef.current,
       Date.now(),
       slotInicioRef.current,
     );
+
+    while (proxima && proxima.tipo !== "AUDIO" && !voiceIdRef.current) {
+      if (proxima.tipo === "HORA" && proxima.horaObjetivoMs != null) {
+        ultimasRef.current.HORA = proxima.horaObjetivoMs;
+      } else {
+        ultimasRef.current[proxima.tipo] = Date.now();
+      }
+      proxima = calcularProximaInterrupcion(
+        cfg,
+        ultimasRef.current,
+        Date.now(),
+        slotInicioRef.current,
+      );
+    }
+
     if (!proxima) return;
 
     programarPreparacion(proxima);
 
+    const tipo = proxima.tipo;
+    const horaObjetivoMs = proxima.horaObjetivoMs;
+
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
       if (isBusy()) {
-        timerRef.current = window.setTimeout(() => programar(), 5_000);
+        timerRef.current = window.setTimeout(() => programarRef.current(), 5_000);
         return;
       }
-      void ejecutarInterrupcion(proxima.tipo, proxima.horaObjetivoMs).finally(() => programar());
+      void ejecutarInterrupcion(tipo, horaObjetivoMs).finally(() => programarRef.current());
     }, proxima.enMs);
   }, [enabled, ejecutarInterrupcion, isBusy, programarPreparacion]);
+
+  useEffect(() => {
+    programarRef.current = programar;
+  }, [programar]);
 
   const slotInicioSig = slotInicioMs != null ? String(slotInicioMs) : "";
 

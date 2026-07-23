@@ -22,6 +22,9 @@ export const djInterrupcionesFieldsZ = z
     djClimaIntervaloMin: intervaloMinZ.nullable().optional(),
     djPublicidadActiva: z.boolean().optional(),
     djPublicidadIntervaloMin: intervaloMinZ.nullable().optional(),
+    djAudioActiva: z.boolean().optional(),
+    djAudioIntervaloMin: intervaloMinZ.nullable().optional(),
+    djAudioCarpetaId: z.string().cuid().nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.djHoraActiva && (data.djHoraIntervaloMin === null || data.djHoraIntervaloMin === undefined)) {
@@ -48,6 +51,22 @@ export const djInterrupcionesFieldsZ = z
         path: ["djPublicidadIntervaloMin"],
       });
     }
+    if (data.djAudioActiva) {
+      if (data.djAudioIntervaloMin === null || data.djAudioIntervaloMin === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "djAudioIntervaloMin requerido cuando djAudioActiva es true",
+          path: ["djAudioIntervaloMin"],
+        });
+      }
+      if (!data.djAudioCarpetaId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "djAudioCarpetaId requerido cuando djAudioActiva es true",
+          path: ["djAudioCarpetaId"],
+        });
+      }
+    }
   });
 
 export type DjInterrupcionesFields = z.infer<typeof djInterrupcionesFieldsZ>;
@@ -60,6 +79,9 @@ export type DjInterrupcionesConfig = {
   djClimaIntervaloMin: number | null;
   djPublicidadActiva: boolean;
   djPublicidadIntervaloMin: number | null;
+  djAudioActiva: boolean;
+  djAudioIntervaloMin: number | null;
+  djAudioCarpetaId: string | null;
 };
 
 export function djConfigFromRow(row: {
@@ -70,6 +92,9 @@ export function djConfigFromRow(row: {
   djClimaIntervaloMin: number | null;
   djPublicidadActiva: boolean;
   djPublicidadIntervaloMin: number | null;
+  djAudioActiva: boolean;
+  djAudioIntervaloMin: number | null;
+  djAudioCarpetaId: string | null;
 }): DjInterrupcionesConfig {
   return {
     presentacionCadaTemas: row.presentacionCadaTemas,
@@ -79,6 +104,9 @@ export function djConfigFromRow(row: {
     djClimaIntervaloMin: row.djClimaIntervaloMin,
     djPublicidadActiva: row.djPublicidadActiva,
     djPublicidadIntervaloMin: row.djPublicidadIntervaloMin,
+    djAudioActiva: row.djAudioActiva,
+    djAudioIntervaloMin: row.djAudioIntervaloMin,
+    djAudioCarpetaId: row.djAudioCarpetaId,
   };
 }
 
@@ -92,5 +120,8 @@ export function djConfigSignature(config: DjInterrupcionesConfig): string {
     ci: config.djClimaIntervaloMin,
     pa: config.djPublicidadActiva,
     pi: config.djPublicidadIntervaloMin,
+    aa: config.djAudioActiva,
+    ai: config.djAudioIntervaloMin,
+    ac: config.djAudioCarpetaId,
   });
 }

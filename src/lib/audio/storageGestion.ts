@@ -144,7 +144,19 @@ async function acumularSpotify(
 async function acumularProgramas(root: string, radioId: string, destino: ContadorCategoria): Promise<void> {
   const programasRoot = join(root, radioId);
   if (!(await existeRuta(programasRoot))) return;
-  await recorrerDirectorio(programasRoot, (c) => {
+  await recorrerArchivos(programasRoot, (filePath, size) => {
+    const rel = filePath.slice(programasRoot.length + 1);
+    if (rel === "biblioteca" || rel.startsWith(`biblioteca/`) || rel.startsWith(`biblioteca\\`)) {
+      return;
+    }
+    sumarArchivo(destino, size);
+  });
+}
+
+async function acumularBiblioteca(root: string, radioId: string, destino: ContadorCategoria): Promise<void> {
+  const bibliotecaRoot = join(root, radioId, "biblioteca");
+  if (!(await existeRuta(bibliotecaRoot))) return;
+  await recorrerDirectorio(bibliotecaRoot, (c) => {
     destino.bytes += c.bytes;
     destino.archivos += c.archivos;
   });
@@ -185,12 +197,14 @@ export async function obtenerStorageStats(radioId: string): Promise<StorageStats
     previews: contadorVacio(),
     spotify: contadorVacio(),
     programas: contadorVacio(),
+    biblioteca: contadorVacio(),
     otros: contadorVacio(),
   };
 
   await acumularPreviews(root, radioId, contadores.previews);
   await acumularSpotify(root, radioId, contadores.spotify);
   await acumularProgramas(root, radioId, contadores.programas);
+  await acumularBiblioteca(root, radioId, contadores.biblioteca);
   await acumularOtros(root, radioId, contadores.otros);
 
   const categorias = aCategorias(contadores);
@@ -277,12 +291,45 @@ async function eliminarProgramas(radioId: string): Promise<LimpiarResponse> {
     return { eliminados, liberadoBytes };
   }
 
+  const entries = await readdir(programasRoot, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.name === "biblioteca") continue;
+    const fullPath = join(programasRoot, entry.name);
+    const antes = contadorVacio();
+    if (entry.isDirectory()) {
+      await recorrerDirectorio(fullPath, (c) => {
+        antes.bytes += c.bytes;
+        antes.archivos += c.archivos;
+      });
+    } else if (entry.isFile()) {
+      const info = await stat(fullPath);
+      sumarArchivo(antes, info.size);
+    } else {
+      continue;
+    }
+    await rm(fullPath, { recursive: true, force: true });
+    eliminados += antes.archivos;
+    liberadoBytes += antes.bytes;
+  }
+  return { eliminados, liberadoBytes };
+}
+
+async function eliminarBiblioteca(radioId: string): Promise<LimpiarResponse> {
+  const root = getAudioStorageRoot();
+  const bibliotecaRoot = join(root, radioId, "biblioteca");
+  let eliminados = 0;
+  let liberadoBytes = 0;
+
+  if (!(await existeRuta(bibliotecaRoot))) {
+    return { eliminados, liberadoBytes };
+  }
+
   const antes = contadorVacio();
-  await recorrerDirectorio(programasRoot, (c) => {
+  await recorrerDirectorio(bibliotecaRoot, (c) => {
     antes.bytes += c.bytes;
     antes.archivos += c.archivos;
   });
-  await rm(programasRoot, { recursive: true, force: true });
+  await rm(bibliotecaRoot, { recursive: true, force: true });
   eliminados = antes.archivos;
   liberadoBytes = antes.bytes;
   return { eliminados, liberadoBytes };
@@ -328,6 +375,7 @@ const LIMPIADORES: Record<string, (radioId: string) => Promise<LimpiarResponse>>
   previews: eliminarPreviews,
   spotify: eliminarSpotify,
   programas: eliminarProgramas,
+  biblioteca: eliminarBiblioteca,
   otros: eliminarOtros,
 };
 

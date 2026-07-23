@@ -53,6 +53,9 @@ function filaDjDesdeRegistro(
     djClimaIntervaloMin: number | null;
     djPublicidadActiva: boolean;
     djPublicidadIntervaloMin: number | null;
+    djAudioActiva: boolean;
+    djAudioIntervaloMin: number | null;
+    djAudioCarpetaId: string | null;
   },
 ): FilaGrillaDj {
   return {
@@ -84,6 +87,9 @@ function toSlotHoy(
     djClimaIntervaloMin: dj.djClimaIntervaloMin,
     djPublicidadActiva: dj.djPublicidadActiva,
     djPublicidadIntervaloMin: dj.djPublicidadIntervaloMin,
+    djAudioActiva: dj.djAudioActiva,
+    djAudioIntervaloMin: dj.djAudioIntervaloMin,
+    djAudioCarpetaId: dj.djAudioCarpetaId,
   };
   if (dj.playlistId) {
     out.playlistId = dj.playlistId;

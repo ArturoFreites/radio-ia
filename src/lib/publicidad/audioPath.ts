@@ -2,12 +2,13 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { getAudioStorageRoot } from "@/lib/audio/previewPaths";
 
-export type AudioAlmacenadoContentType = "audio/mpeg" | "audio/wav" | "audio/ogg";
+export type AudioAlmacenadoContentType = "audio/mpeg" | "audio/wav" | "audio/ogg" | "audio/mp4";
 
 export function contentTypeDesdeRutaAudio(filePath: string): AudioAlmacenadoContentType {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".wav") return "audio/wav";
   if (ext === ".ogg") return "audio/ogg";
+  if (ext === ".m4a" || ext === ".mp4") return "audio/mp4";
   return "audio/mpeg";
 }
 

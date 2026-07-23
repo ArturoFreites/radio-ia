@@ -10,6 +10,7 @@ import {
   LogOut,
   Megaphone,
   Mic2,
+  Music2,
   Settings,
   X,
 } from "lucide-react";
@@ -39,6 +40,7 @@ const defaultItems: MobileSidebarItem[] = [
   { href: "/spotify", label: "Spotify", icon: <BrandLogo brand="spotify" size="md" /> },
   { href: "/locutores", label: "Locutores", icon: <Mic2 className="h-5 w-5" /> },
   { href: "/publicidad", label: "Publicidad", icon: <Megaphone className="h-5 w-5" /> },
+  { href: "/audios", label: "Audios", icon: <Music2 className="h-5 w-5" /> },
   { href: "/almacenamiento", label: "Almacenamiento", icon: <HardDrive className="h-5 w-5" /> },
   { href: "/configuracion", label: "Configuración", icon: <Settings className="h-5 w-5" /> },
 ];
