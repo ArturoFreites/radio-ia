@@ -3,11 +3,12 @@
 import { FormEvent, useState } from "react";
 import { FolderPlus, Music2 } from "lucide-react";
 import { toast } from "sonner";
+import { AudiosSeccionTabs } from "@/components/audios/AudiosGeneradosCatalogo";
+import { CarpetaAudiosCard } from "@/components/audios/CarpetaAudiosCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { CarpetaAudiosCard } from "@/components/audios/CarpetaAudiosCard";
 
 export type ModoRotacionAudio = "SECUENCIAL" | "ALEATORIO";
 
@@ -86,12 +87,17 @@ export function AudiosBiblioteca({ initialCarpetas, aireToken }: AudiosBibliotec
 
   return (
     <main className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-[color:var(--primary)]">Biblioteca</p>
-        <h1 className="mt-1 text-2xl font-semibold text-[color:var(--text)]">Audios</h1>
-        <p className="mt-1 text-sm text-[color:var(--muted)]">
-          Jingles, IDs de estación y cortinas pregrabadas para insertar en el aire desde la grilla DJ.
-        </p>
+      <div className="space-y-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-[color:var(--primary)]">
+            Audios
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold text-[color:var(--text)]">Biblioteca</h1>
+          <p className="mt-1 text-sm text-[color:var(--muted)]">
+            Jingles, IDs de estación y cortinas pregrabadas para insertar en el aire desde la grilla DJ.
+          </p>
+        </div>
+        <AudiosSeccionTabs activa="biblioteca" />
       </div>
 
       <Card className="p-4 sm:p-5">

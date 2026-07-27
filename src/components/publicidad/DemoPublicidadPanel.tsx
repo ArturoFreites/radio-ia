@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/utils";
+import { nombreDescargaAudio } from "@/lib/audios/nombreDescarga";
 
 type DemoPublicidadPanelProps = {
   aireToken: string;
@@ -38,6 +39,14 @@ function formatTiempo(segundos: number): string {
   const mins = Math.floor(segundos / 60);
   const secs = segundos % 60;
   return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+function nombreDemoPublicidad(comercio: string): string {
+  return nombreDescargaAudio({
+    tipo: "DEMO_PUBLICIDAD",
+    titulo: comercio.trim() || "Airon",
+    creadoEn: new Date(),
+  });
 }
 
 export function DemoPublicidadPanel({
@@ -147,7 +156,7 @@ export function DemoPublicidadPanel({
       if (autoDownload) {
         const anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = `demo-publicidad-${comercio.trim() || "airon"}.mp3`;
+        anchor.download = nombreDemoPublicidad(comercio);
         anchor.click();
       }
     } catch (error) {
@@ -175,7 +184,7 @@ export function DemoPublicidadPanel({
     const url = URL.createObjectURL(audioBlob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `demo-publicidad-${comercio.trim() || "airon"}.mp3`;
+    anchor.download = nombreDemoPublicidad(comercio);
     anchor.click();
     URL.revokeObjectURL(url);
   };
